@@ -10,11 +10,10 @@
 #include <stdio.h>
 #include "ConexaoRawSocket.h"
 
-int ConexaoRawSocket(char *device)
+int ConexaoRawSocket(char *device, struct sockaddr_ll *endereco)
 {
   int soquete;
   struct ifreq ir;
-  struct sockaddr_ll endereco;
   struct packet_mreq mr;
 
   soquete = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));  	/*cria socket*/
@@ -31,12 +30,12 @@ int ConexaoRawSocket(char *device)
   }
 	
 
-  memset(&endereco, 0, sizeof(endereco)); 	/*IP do dispositivo*/
-  endereco.sll_family = AF_PACKET;
-  endereco.sll_protocol = htons(ETH_P_ALL);
-  endereco.sll_ifindex = ir.ifr_ifindex;
-  printf("ifindex %d\n", ir.ifr_ifindex);
-  if (bind(soquete, (struct sockaddr *)&endereco, sizeof(endereco)) == -1) {
+  memset(endereco, 0, sizeof(*endereco)); 	/*IP do dispositivo*/
+  endereco->sll_family = AF_PACKET;
+  endereco->sll_protocol = htons(ETH_P_ALL);
+  endereco->sll_ifindex = ir.ifr_ifindex;
+
+  if (bind(soquete, (struct sockaddr *)endereco, sizeof(*endereco)) == -1) {
     printf("Erro no bind\n");
     exit(-1);
   }

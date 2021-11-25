@@ -5,6 +5,7 @@
 #include "ConexaoRawSocket.h"
 
 #define BUF_SIZE 2048
+#define DEVICE "lo"
 
 void printPacket(unsigned char *buf, int len){
     unsigned char *p = buf;
@@ -21,24 +22,25 @@ void printPacket(unsigned char *buf, int len){
 
 int main(){
 
-    int sock = ConexaoRawSocket("lo");
+    struct sockaddr_ll sockad; 
+    int sock = ConexaoRawSocket(DEVICE,&sockad);
     int len;
     unsigned char buffer[BUF_SIZE];
     struct sockaddr_ll packet_info;
     int packet_info_size = sizeof(packet_info);
 
-    if (len = recvfrom(sock, buffer, BUF_SIZE, 0, (struct sockaddr *) &packet_info, &packet_info_size) < 0){
-        fprintf(stderr, "Deu ruim com o recvfrom\n");
-        return 1;
-    } else {
-        printPacket(buffer, len);
-    }
 
-    // for (;;){
-    //     printf("Waiting for connection...\n");
-    //     fflush(stdout);
-    //     int new_sock = accept(sock, (struct sockaddr *)NULL, NULL);
-    // }
+    for (;;){
+        printf("Waiting for connection...\n");
+        fflush(stdout);
+
+        if ( (len = recvfrom(sock, buffer, BUF_SIZE, 0, (struct sockaddr *) &packet_info, &packet_info_size)) < 0){
+            fprintf(stderr, "Deu ruim com o recvfrom\n");
+            return 1;
+        } else if (len){
+            printPacket(buffer, len);
+        }
+    }
 
     return 0;
 }
