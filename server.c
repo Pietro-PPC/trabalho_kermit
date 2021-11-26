@@ -29,17 +29,12 @@ int main(){
     struct sockaddr_ll packet_info;
     int packet_info_size = sizeof(packet_info);
 
-
     for (;;){
-        printf("Waiting for connection...\n");
-        fflush(stdout);
-
         if ( (len = recvfrom(sock, buffer, BUF_SIZE, 0, (struct sockaddr *) &packet_info, &packet_info_size)) < 0){
-            fprintf(stderr, "Deu ruim com o recvfrom\n");
+            fprintf(stderr, "No message!\n");
             return 1;
-        } else if (len){
+        } else 
             printPacket(buffer, len);
-        }
     }
 
     return 0;

@@ -7,10 +7,12 @@
 #include <linux/if_packet.h>
 #include <string.h>
 #include <errno.h>
-
 #include <linux/if.h>
 #include <sys/ioctl.h>
+
 #include "ConexaoRawSocket.h"
+#include "message.h"
+#include "utils.h"
 
 #define DEVICE "lo"
 
@@ -25,8 +27,12 @@ int main(){
     struct sockaddr_ll sockad; 
     int sock = ConexaoRawSocket(DEVICE, &sockad);
 
-    unsigned char *msg = "Hello, World!\n";
-    sendMessage(sock, msg, &sockad);
+    unsigned char *msg = "cd ~\n";
+    unsigned char parsed[MAX_MSG_SIZE];
+    parsed[0] = 126;
+    parseMsg(msg, parsed);
+    printBitwise(parsed, MAX_MSG_SIZE);
+    //sendMessage(sock, msg, &sockad);
 
     return 0;
 }
