@@ -1,2 +1,5 @@
 Alterar a função que cria um raw socket para retornar o seu endereço. 
 Assim, não recebe pacotes duplos.
+
+Optei por calcular a paridade com a parte do tamanho do segundo byte
+e o terceiro byte inteiro, que tem seq e tipo

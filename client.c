@@ -17,7 +17,7 @@
 #define DEVICE "lo"
 
 void sendMessage(int sock, char *msg, struct sockaddr_ll *sockad){
-    int len = sendto(sock, msg, strlen(msg), 0, (struct sockaddr *)sockad, sizeof (struct sockaddr_ll));
+    int len = sendto(sock, msg, MAX_MSG_SIZE, 0, (struct sockaddr *)sockad, sizeof (struct sockaddr_ll));
     if (len < 0){
         fprintf(stderr, "Deu ruim no sendto: %d\n", errno);
     }
@@ -27,12 +27,12 @@ int main(){
     struct sockaddr_ll sockad; 
     int sock = ConexaoRawSocket(DEVICE, &sockad);
 
-    unsigned char *msg = "cd ~\n";
+    unsigned char *msg = "cd hotmaper";
     unsigned char parsed[MAX_MSG_SIZE];
     parsed[0] = 126;
     parseMsg(msg, parsed);
     printBitwise(parsed, MAX_MSG_SIZE);
-    //sendMessage(sock, msg, &sockad);
+    sendMessage(sock, msg, &sockad);
 
     return 0;
 }
