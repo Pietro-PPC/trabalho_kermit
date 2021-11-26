@@ -10,7 +10,7 @@ void setClientToServer(unsigned char *B){
     *B <<= 4;
 }
 
-void setParity(unsigned char *parsed_msg){
+unsigned char getParity(unsigned char *parsed_msg){
     unsigned char msg_size = parsed_msg[1] & 15;
     unsigned char parity = msg_size;
 
@@ -19,10 +19,10 @@ void setParity(unsigned char *parsed_msg){
         parity ^= *(parsed_msg + (2+i)); // 2 é a posição do byte seq/tipo
     }
 
-    parsed_msg[3+msg_size] = parity;
+    return parity;
 }
 
-// falta seq 
+// falta seq e acho que seria legal modularizar mais ainda
 void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg){
     
     setClientToServer(parsed_msg+1);
@@ -35,10 +35,10 @@ void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg){
     // copia nome do diretório para a mensagem
     strncpy(parsed_msg+3, dir, strlen(dir));
 
-    setParity(parsed_msg);
+    parsed_msg[3+msg_size] = getParity(parsed_msg);
 }
 
-void parseMsg(unsigned char *raw_msg, unsigned char *parsed_msg){
+void buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg){
     unsigned char command[MAX_CMD_LEN];
     sscanf(raw_msg, "%s", command);
 
@@ -46,5 +46,15 @@ void parseMsg(unsigned char *raw_msg, unsigned char *parsed_msg){
 
     if (!strcmp(command, CD_STR)){
         buildCd(raw_msg, parsed_msg);
+    }
+}
+
+void parseMsg(unsigned char *msg){
+    unsigned char msg_size = msg[1] & 15;
+    unsigned char msg_parity = msg[3+msg_size];
+    if ( !(getParity(msg) ^ msg_parity) ){
+        printf("Tudo certo!\n");
+    } else {
+        printf("Deu ruinzin\n");
     }
 }

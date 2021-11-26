@@ -10,3 +10,16 @@ void printBitwise(unsigned char *txt, int len){
     }
     printf("\n");
 }
+
+void printPacket(unsigned char *buf, int len){
+    unsigned char *p = buf;
+
+    printf("\nPackage start\n");
+
+    while (len--){
+        printf("%c\n", *p);
+        p++;
+    }
+
+    printf("\nPackage end\n");
+}

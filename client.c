@@ -12,7 +12,7 @@
 
 #include "ConexaoRawSocket.h"
 #include "message.h"
-#include "utils.h"
+#include "common.h"
 
 #define DEVICE "lo"
 
@@ -27,12 +27,12 @@ int main(){
     struct sockaddr_ll sockad; 
     int sock = ConexaoRawSocket(DEVICE, &sockad);
 
-    unsigned char *msg = "cd hotmaper";
+    unsigned char *msg = "cd hotmapper";
     unsigned char parsed[MAX_MSG_SIZE];
     parsed[0] = 126;
-    parseMsg(msg, parsed);
+    buildMsg(msg, parsed);
     printBitwise(parsed, MAX_MSG_SIZE);
-    sendMessage(sock, msg, &sockad);
+    sendMessage(sock, parsed, &sockad);
 
     return 0;
 }

@@ -9,6 +9,8 @@
 
 #define CD_STR "cd"
 
-void parseMsg(unsigned char *raw_msg, unsigned char *parsed_msg);
+void buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg);
+
+void parseMsg();
 
 #endif

@@ -3,22 +3,10 @@
 #include <net/ethernet.h>
 #include <linux/if_packet.h>
 #include "ConexaoRawSocket.h"
+#include "message.h"
 
 #define BUF_SIZE 2048
 #define DEVICE "lo"
-
-void printPacket(unsigned char *buf, int len){
-    unsigned char *p = buf;
-
-    printf("\nPackage start\n");
-
-    while (len--){
-        printf("%c\n", *p);
-        p++;
-    }
-
-    printf("\nPackage end\n");
-}
 
 int main(){
 
@@ -29,12 +17,12 @@ int main(){
     struct sockaddr_ll packet_info;
     int packet_info_size = sizeof(packet_info);
 
-    for (;;){
+    for (int i = 0; i < 2; ++i){
         if ( (len = recvfrom(sock, buffer, BUF_SIZE, 0, (struct sockaddr *) &packet_info, &packet_info_size)) < 0){
             fprintf(stderr, "No message!\n");
             return 1;
         } else 
-            printPacket(buffer, len);
+            parseMsg(buffer);
     }
 
     return 0;
