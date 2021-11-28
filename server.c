@@ -17,13 +17,15 @@ int main(){
     struct sockaddr_ll packet_info;
     int packet_info_size = sizeof(packet_info);
 
-    for (int i = 0; i < 2; ++i){
+    printf("Server is on...\n\n");
+    for (int i = 0; i < 20; ++i){
         if ( (len = recvfrom(sock, buffer, BUF_SIZE, 0, (struct sockaddr *) &packet_info, &packet_info_size)) < 0){
             fprintf(stderr, "No message!\n");
             return 1;
-        } else 
-            parseMsg(buffer);
+        }
+        parseMsg(buffer);
     }
 
+    printf("Server is off\n");
     return 0;
 }

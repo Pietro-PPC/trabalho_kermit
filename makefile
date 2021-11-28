@@ -15,7 +15,7 @@ message.o: message.c message.h
 common.o: common.c common.h
 	gcc -c common.c -o common.o
 
-test: a.c
+test: test.c
 	gcc test.c -o test
 
 clean: 
