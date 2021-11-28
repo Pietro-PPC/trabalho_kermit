@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <net/ethernet.h>
@@ -7,7 +8,7 @@
 void sendMessage(int sock, char *msg, int msg_size, struct sockaddr_ll *sockad){
     int len = sendto(sock, msg, msg_size, 0, (struct sockaddr *)sockad, sizeof (struct sockaddr_ll));
     if (len < 0){
-        fprintf(stderr, "Deu ruim no sendto: %d\n", errno);
+        fprintf(stderr, "Problem with sendto. Errno: %d\n", errno);
     }
 }
 

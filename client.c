@@ -28,18 +28,37 @@ void getCommand (char *command){
 }
 
 int main(){
-    struct sockaddr_ll sockad; 
+    struct sockaddr_ll sockad, packet_info; 
     int sock = ConexaoRawSocket(DEVICE, &sockad);
 
-    char command[MAX_BUF];
-    unsigned char msg[MAX_MSG_SIZE];
+    char command[MAX_BUF] = "";
+    unsigned char msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
+    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity;
+    int ret;
 
-    getCommand(command);
     while (strcmp(command, "exit")){
-        buildMsg(command, msg);
-        printBitwise(msg, MAX_MSG_SIZE);
-        sendMessage(sock, msg, MAX_MSG_SIZE, &sockad);
         getCommand(command);
+        if (buildMsg(command, msg))
+            continue;
+        do {
+            sendMessage(sock, msg, MAX_MSG_SIZE, &sockad);
+            printf("Mandando...\n");
+            // Pega mensagens até chegar uma endereçada ao client
+            do {
+                recieveMessage(sock, response, MAX_MSG_SIZE, &packet_info); // recebe resposta do server
+                ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, &msg_parity);
+            } while (ret == 1 || msg_dst != CLIENT_ADD);
+            // Não sei se precisa mandar nack caso ret seja 2
+
+            if (ret == 2) {
+                fprintf(stderr, "Fatal error! Response message corrupted!\n");
+                exit(1);
+            }
+
+        } while(msg_type == NACK_TYPE);
+
+        if (msg_type == ACK_TYPE)
+            printf("ACK!!!\n");
     }
 
     return 0;

@@ -1,11 +1,12 @@
 #ifndef __MESSAGE__
 #define __MESSAGE__
 
-#define SERVER_ADD 2
-#define CLIENT_ADD 1
-
 #define MAX_CMD_LEN 10
 #define MAX_MSG_SIZE 19
+
+#define START_MARKER 0x7E
+#define SERVER_ADD 2
+#define CLIENT_ADD 1
 
 #define CD_STR "cd"
 #define LS_STR "ls"
@@ -27,7 +28,11 @@
 
 int buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg);
 
-void parseMsg(unsigned char *msg, unsigned char *msg_size, unsigned char *msg_sequence, 
-              unsigned char *msg_type, unsigned char *msg_parity);
+int parseMsg(unsigned char *msg, unsigned char *msg_dst, unsigned char *msg_size, 
+              unsigned char *msg_sequence, unsigned char *msg_type, unsigned char *msg_parity);
+
+void buildAck(unsigned char *parsed_msg, unsigned char src, unsigned char dst);
+
+void buildNack(unsigned char *parsed_msg, unsigned char src, unsigned char dst);
 
 #endif

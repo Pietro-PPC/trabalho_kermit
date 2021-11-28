@@ -8,7 +8,7 @@
 ***********/
 void initializeMsg(unsigned char *msg){
     memset(msg, 0, MAX_MSG_SIZE * sizeof(unsigned char));
-    msg[0] = 0x7E;
+    msg[0] = START_MARKER;
 }
 
 void setSrcDst(unsigned char *msg, unsigned char src, unsigned char dst){
@@ -38,7 +38,7 @@ void setParity(unsigned char *msg, unsigned char parity){
 }
 
 
-unsigned char getParity(unsigned char *parsed_msg){
+unsigned char calcParity(unsigned char *parsed_msg){
     unsigned char msg_size = parsed_msg[1] & 0x0F;
     unsigned char parity = msg_size;
 
@@ -54,17 +54,27 @@ unsigned char getParity(unsigned char *parsed_msg){
  ENVIO DE MENSAGENS
 *******************/
 
-void buildAck(unsigned char *parsed_msg){
+void buildAck(unsigned char *parsed_msg, unsigned char src, unsigned char dst){
+    unsigned char parity;
+    
     initializeMsg(parsed_msg);
-
-    setSrcDst(parsed_msg, SERVER_ADD, CLIENT_ADD);
-
+    setSrcDst(parsed_msg, src, dst);
     setType(parsed_msg, ACK_TYPE);
+    
+    parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
 }
 
-// void buildNack(unsigned char a){
-// 
-// }
+void buildNack(unsigned char *parsed_msg, unsigned char src, unsigned char dst){
+    unsigned char parity;
+    
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, src, dst);
+    setType(parsed_msg, NACK_TYPE);
+    
+    parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+}
 
 void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg){
     unsigned char parity;
@@ -80,7 +90,7 @@ void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg){
     setType(parsed_msg, CD_TYPE);
     setData(parsed_msg, dir);
 
-    parity = getParity(parsed_msg);
+    parity = calcParity(parsed_msg);
     setParity(parsed_msg, parity);
 }
 
@@ -90,7 +100,7 @@ void buildLs(unsigned char *raw_msg, unsigned char *parsed_msg){
 
     setType(parsed_msg, LS_TYPE);
 
-    parity = getParity(parsed_msg);
+    parity = calcParity(parsed_msg);
     setParity(parsed_msg, parity);
 }
 /*
@@ -119,15 +129,25 @@ int buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg){
  RECEBIMENTO DE MENSAGENS
 *************************/
 
-void parseMsg(unsigned char *msg, unsigned char *msg_size, unsigned char *msg_sequence, 
-              unsigned char *msg_type, unsigned char *msg_parity){
+/*
+    Retornos de erro
+        . 0: Tudo certo;
+        . 1: Mensagem não é kermit
+        . 2: Mensagem corrompida
+*/
+int parseMsg(unsigned char *msg, unsigned char *msg_dst, unsigned char *msg_size, 
+              unsigned char *msg_sequence, unsigned char *msg_type, unsigned char *msg_parity){
+    if (msg[0] != START_MARKER){
+        return 1;
+    }
+    *msg_dst = (msg[1] & 0xC0) >> 6;
     *msg_size = msg[1] & 0x0F;
     *msg_sequence = (msg[2] & 0xF0) >> 4;
     *msg_type = msg[2] & 0x0F;
     *msg_parity = msg[3+*msg_size];
 
-    if ( getParity(msg) ^ *msg_parity ){
-        fprintf(stderr, "Message corrupted!\n"); // depois vai ter que virar um NACK
+    if ( calcParity(msg) ^ *msg_parity ){
+        return 2;
     }
-
+    return 0;
 }
