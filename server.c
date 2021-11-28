@@ -16,14 +16,25 @@ int main(){
     unsigned char buffer[BUF_SIZE];
     struct sockaddr_ll packet_info;
     int packet_info_size = sizeof(packet_info);
+    unsigned char msg_size, msg_sequence, msg_type, msg_parity;
 
-    printf("Server is on...\n\n");
+    printf("Server is on...\n");
     for (int i = 0; i < 20; ++i){
         if ( (len = recvfrom(sock, buffer, BUF_SIZE, 0, (struct sockaddr *) &packet_info, &packet_info_size)) < 0){
             fprintf(stderr, "No message!\n");
             return 1;
         }
-        parseMsg(buffer);
+        parseMsg(buffer, &msg_size, &msg_sequence, &msg_type, &msg_parity);
+        
+        if (msg_type == 0){
+            printf("cd\n");
+        }
+        else if (msg_type == 1){
+            printf("ls\n");
+        }
+        else {
+            fprintf(stderr, "Command unavailable!\n");
+        }
     }
 
     printf("Server is off\n");

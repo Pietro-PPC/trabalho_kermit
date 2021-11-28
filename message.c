@@ -6,14 +6,37 @@
 /***********
   FUNÇÕES ÚTEIS
 ***********/
-void setClientToServer(unsigned char *msg){
-    unsigned char buf = 0;
-    buf = SERVER_ADD;
-    buf <<= 2;
-    buf += CLIENT_ADD;
-    buf <<= 4;
-    msg[1] += buf;
+void initializeMsg(unsigned char *msg){
+    memset(msg, 0, MAX_MSG_SIZE * sizeof(unsigned char));
+    msg[0] = 0x7E;
 }
+
+void setSrcDst(unsigned char *msg, unsigned char src, unsigned char dst){
+    msg[1] += dst << 6;
+    msg[1] += src << 4;
+}
+
+void setSize(unsigned char *msg, unsigned char size){
+    msg[1] += size;
+}
+
+void setSeq(unsigned char *msg, unsigned char seq){
+    msg[2] += (seq << 4);
+}
+
+void setType(unsigned char *msg, unsigned char type){
+    msg[2] += type;
+}
+
+void setData(unsigned char *msg, unsigned char* data){
+    strncpy(msg+3, data, strlen(data));
+}
+
+void setParity(unsigned char *msg, unsigned char parity){
+    unsigned char msg_size = msg[1] & 0x0F;
+    msg[3+msg_size] = parity;
+}
+
 
 unsigned char getParity(unsigned char *parsed_msg){
     unsigned char msg_size = parsed_msg[1] & 0x0F;
@@ -27,46 +50,59 @@ unsigned char getParity(unsigned char *parsed_msg){
     return parity;
 }
 
-void setParity(unsigned char *parsed_msg){
-    unsigned char msg_size = parsed_msg[1] & 0x0F;
-    parsed_msg[3+msg_size] = getParity(parsed_msg);
-}
-
 /*******************
  ENVIO DE MENSAGENS
 *******************/
 
-// falta seq e acho que seria legal modularizar mais ainda
+void buildAck(unsigned char *parsed_msg){
+    initializeMsg(parsed_msg);
+
+    setSrcDst(parsed_msg, SERVER_ADD, CLIENT_ADD);
+
+    setType(parsed_msg, ACK_TYPE);
+}
+
+// void buildNack(unsigned char a){
+// 
+// }
+
 void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg){
-    
-    setClientToServer(parsed_msg);
-
+    unsigned char parity;
     unsigned char dir[16];
+    unsigned char msg_size;
+
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+
     sscanf(raw_msg + strlen(CD_STR)+1, "%s", dir);
-    unsigned char msg_size = (unsigned char) strlen(dir); 
-    parsed_msg[1] += msg_size; // se for maior que 15 vai dar errado
+    msg_size = (unsigned char) strlen(dir); 
+    setSize(parsed_msg, msg_size); // se for maior que 15 vai dar errado
 
-    parsed_msg[2] += CD_TYPE;
-    // copia nome do diretório para a mensagem
-    strncpy(parsed_msg+3, dir, strlen(dir));
+    setType(parsed_msg, CD_TYPE);
+    setData(parsed_msg, dir);
 
-    setParity(parsed_msg);
+    parity = getParity(parsed_msg);
+    setParity(parsed_msg, parity);
 }
 
 void buildLs(unsigned char *raw_msg, unsigned char *parsed_msg){
-    setClientToServer(parsed_msg);
+    unsigned char parity;
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
 
-    parsed_msg[2] += LS_TYPE;
+    setType(parsed_msg, LS_TYPE);
 
-    setParity(parsed_msg);
+    parity = getParity(parsed_msg);
+    setParity(parsed_msg, parity);
 }
-
-void buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg){
+/*
+  Retornos: 
+    . 0 - Mensagem construída com sucesso
+    . 1 - Fracasso ao construir mensagem
+*/
+int buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg){
     unsigned char command[MAX_CMD_LEN];
     sscanf(raw_msg, "%s", command);
 
-    // Garantir que bytes são todos 0
-    memset(parsed_msg+1, 0, MAX_MSG_SIZE - 1);
+    initializeMsg(parsed_msg);
 
     if (!strcmp(command, CD_STR)){
         buildCd(raw_msg, parsed_msg);
@@ -74,29 +110,24 @@ void buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg){
     else if (!strcmp(command, LS_STR)){ // TODO: Talvez colocar um warning caso ls tenha argumentos 
         buildLs(raw_msg, parsed_msg);
     }
+    else 
+        return 1;
+    return 0;
 }
 
 /*************************
  RECEBIMENTO DE MENSAGENS
 *************************/
 
-void parseMsg(unsigned char *msg){
-    unsigned char msg_size = msg[1] & 0x0F;
-    unsigned char msg_sequence = msg[2] & 0xF0;
-    unsigned char msg_type = msg[2] & 0x0F;
-    unsigned char msg_parity = msg[3+msg_size];
-    if ( getParity(msg) ^ msg_parity ){
-        fprintf(stderr, "Erro de envio!"); // depois vai ter que virar um NACK
-        return;
+void parseMsg(unsigned char *msg, unsigned char *msg_size, unsigned char *msg_sequence, 
+              unsigned char *msg_type, unsigned char *msg_parity){
+    *msg_size = msg[1] & 0x0F;
+    *msg_sequence = (msg[2] & 0xF0) >> 4;
+    *msg_type = msg[2] & 0x0F;
+    *msg_parity = msg[3+*msg_size];
+
+    if ( getParity(msg) ^ *msg_parity ){
+        fprintf(stderr, "Message corrupted!\n"); // depois vai ter que virar um NACK
     }
 
-    if (msg_type == 0){
-        printf("cd\n");
-    }
-    else if (msg_type == 1){
-        printf("ls\n");
-    }
-    else {
-        printf("Message isn't regitered");
-    }
 }

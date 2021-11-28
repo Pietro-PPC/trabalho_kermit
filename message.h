@@ -25,8 +25,9 @@
 #define END_TRANSM_TYPE 0x0D
 #define ERROR_TYPE 0x0F
 
-void buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg);
+int buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg);
 
-void parseMsg();
+void parseMsg(unsigned char *msg, unsigned char *msg_size, unsigned char *msg_sequence, 
+              unsigned char *msg_type, unsigned char *msg_parity);
 
 #endif

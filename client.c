@@ -24,10 +24,12 @@ void sendMessage(int sock, char *msg, struct sockaddr_ll *sockad){
     }
 }
 
-void get_command (char *command){
-    printf(">>> ");
-    fgets(command, MAX_BUF, stdin); 
-    command[strcspn(command, "\n")] = '\0';
+void getCommand (char *command){
+    do {
+        printf(">>> ");
+        fgets(command, MAX_BUF, stdin); 
+        command[strcspn(command, "\n")] = '\0';
+    } while(!strlen(command));
 }
 
 int main(){
@@ -37,13 +39,12 @@ int main(){
     char command[MAX_BUF];
     unsigned char msg[MAX_MSG_SIZE];
 
-    get_command(command);
+    getCommand(command);
     while (strcmp(command, "exit")){
-        msg[0] = 0x7E; // meio zoado estar aqui
         buildMsg(command, msg);
         printBitwise(msg, MAX_MSG_SIZE);
         sendMessage(sock, msg, &sockad);
-        get_command(command);
+        getCommand(command);
     }
 
     return 0;
