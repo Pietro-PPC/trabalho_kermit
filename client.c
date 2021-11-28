@@ -1,28 +1,23 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <net/ethernet.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
-#include <string.h>
-#include <errno.h>
 #include <linux/if.h>
-#include <sys/ioctl.h>
 
 #include "ConexaoRawSocket.h"
 #include "message.h"
 #include "common.h"
+#include "send_recieve.h"
 
 #define MAX_BUF 256
 #define DEVICE "lo"
 
-void sendMessage(int sock, char *msg, struct sockaddr_ll *sockad){
-    int len = sendto(sock, msg, MAX_MSG_SIZE, 0, (struct sockaddr *)sockad, sizeof (struct sockaddr_ll));
-    if (len < 0){
-        fprintf(stderr, "Deu ruim no sendto: %d\n", errno);
-    }
-}
 
 void getCommand (char *command){
     do {
@@ -43,7 +38,7 @@ int main(){
     while (strcmp(command, "exit")){
         buildMsg(command, msg);
         printBitwise(msg, MAX_MSG_SIZE);
-        sendMessage(sock, msg, &sockad);
+        sendMessage(sock, msg, MAX_MSG_SIZE, &sockad);
         getCommand(command);
     }
 
