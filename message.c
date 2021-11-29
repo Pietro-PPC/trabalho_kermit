@@ -54,34 +54,51 @@ unsigned char calcParity(unsigned char *parsed_msg){
  ENVIO DE MENSAGENS
 *******************/
 
-void buildAck(unsigned char *parsed_msg, unsigned char src, unsigned char dst){
+void buildAck(unsigned char *parsed_msg, unsigned char src, unsigned char dst, unsigned char seq){
     unsigned char parity;
     
     initializeMsg(parsed_msg);
     setSrcDst(parsed_msg, src, dst);
+    setSeq(parsed_msg, seq);
     setType(parsed_msg, ACK_TYPE);
     
     parity = calcParity(parsed_msg);
     setParity(parsed_msg, parity);
 }
 
-void buildNack(unsigned char *parsed_msg, unsigned char src, unsigned char dst){
+void buildNack(unsigned char *parsed_msg, unsigned char src, unsigned char dst, unsigned char seq){
     unsigned char parity;
     
     initializeMsg(parsed_msg);
     setSrcDst(parsed_msg, src, dst);
+    setSeq(parsed_msg, seq);
     setType(parsed_msg, NACK_TYPE);
     
     parity = calcParity(parsed_msg);
     setParity(parsed_msg, parity);
 }
 
-void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg){
+void buildError(unsigned char *parsed_msg, unsigned char error, unsigned char seq){
     unsigned char parity;
+
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, SERVER_ADD, CLIENT_ADD);
+    setSize(parsed_msg, 1);
+    setSeq(parsed_msg, seq);
+    setType(parsed_msg, ERROR_TYPE);
+
+    char error_str[2];
+    error_str[0] = error;
+    error_str[1] = '\0';
+    setData(parsed_msg, error_str);
+
+    parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+}
+
+void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg){
     unsigned char dir[16];
     unsigned char msg_size;
-
-    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
 
     sscanf(raw_msg + strlen(CD_STR)+1, "%s", dir);
     msg_size = (unsigned char) strlen(dir); 
@@ -90,29 +107,25 @@ void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg){
     setType(parsed_msg, CD_TYPE);
     setData(parsed_msg, dir);
 
-    parity = calcParity(parsed_msg);
-    setParity(parsed_msg, parity);
 }
 
 void buildLs(unsigned char *raw_msg, unsigned char *parsed_msg){
-    unsigned char parity;
-    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
-
     setType(parsed_msg, LS_TYPE);
-
-    parity = calcParity(parsed_msg);
-    setParity(parsed_msg, parity);
 }
 /*
   Retornos: 
     . 0 - Mensagem construída com sucesso
     . 1 - Fracasso ao construir mensagem
 */
-int buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg){
+int buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
     unsigned char command[MAX_CMD_LEN];
+    unsigned char parity;
+
     sscanf(raw_msg, "%s", command);
 
     initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+    setSeq(parsed_msg, seq);
 
     if (!strcmp(command, CD_STR)){
         buildCd(raw_msg, parsed_msg);
@@ -122,6 +135,9 @@ int buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg){
     }
     else 
         return 1;
+        
+    parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
     return 0;
 }
 
@@ -136,7 +152,8 @@ int buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg){
         . 2: Mensagem corrompida
 */
 int parseMsg(unsigned char *msg, unsigned char *msg_dst, unsigned char *msg_size, 
-              unsigned char *msg_sequence, unsigned char *msg_type, unsigned char *msg_parity){
+              unsigned char *msg_sequence, unsigned char *msg_type, unsigned char *msg_data,
+              unsigned char *msg_parity){
     if (msg[0] != START_MARKER){
         return 1;
     }
@@ -144,6 +161,8 @@ int parseMsg(unsigned char *msg, unsigned char *msg_dst, unsigned char *msg_size
     *msg_size = msg[1] & 0x0F;
     *msg_sequence = (msg[2] & 0xF0) >> 4;
     *msg_type = msg[2] & 0x0F;
+    strncpy(msg_data, msg+3, *msg_size);
+    msg_data[*msg_size] = '\0';
     *msg_parity = msg[3+*msg_size];
 
     if ( calcParity(msg) ^ *msg_parity ){

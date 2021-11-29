@@ -3,6 +3,8 @@
 
 #define MAX_CMD_LEN 10
 #define MAX_MSG_SIZE 19
+#define MAX_DATA_SIZE 16
+#define MAX_SEQ 16
 
 #define START_MARKER 0x7E
 #define SERVER_ADD 2
@@ -26,13 +28,21 @@
 #define END_TRANSM_TYPE 0x0D
 #define ERROR_TYPE 0x0F
 
-int buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg);
+#define PERM_ER 1
+#define DIR_ER 2
+#define FILE_ER 3
+#define LINE_ER 4
+
+int buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq);
 
 int parseMsg(unsigned char *msg, unsigned char *msg_dst, unsigned char *msg_size, 
-              unsigned char *msg_sequence, unsigned char *msg_type, unsigned char *msg_parity);
+              unsigned char *msg_sequence, unsigned char *msg_type, unsigned char *msg_data, 
+              unsigned char *msg_parity);
 
-void buildAck(unsigned char *parsed_msg, unsigned char src, unsigned char dst);
+void buildAck(unsigned char *parsed_msg, unsigned char src, unsigned char dst, unsigned char seq);
 
-void buildNack(unsigned char *parsed_msg, unsigned char src, unsigned char dst);
+void buildNack(unsigned char *parsed_msg, unsigned char src, unsigned char dst, unsigned char seq);
+
+void buildError(unsigned char *parsed_msg, unsigned char error, unsigned char seq);
 
 #endif

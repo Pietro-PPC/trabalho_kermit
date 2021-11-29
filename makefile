@@ -1,10 +1,10 @@
 all: client server
 
-client: client.c ConexaoRawSocket.o message.o common.o send_recieve.o
-	gcc client.c ConexaoRawSocket.o message.o common.o send_recieve.o -o client
+client: client.c ConexaoRawSocket.o message.o common.o send_recieve.o files_and_dirs.o
+	gcc client.c ConexaoRawSocket.o message.o common.o send_recieve.o files_and_dirs.o -o client
 
-server: server.c ConexaoRawSocket.o message.o common.o send_recieve.o
-	gcc server.c ConexaoRawSocket.o message.o common.o send_recieve.o -o server
+server: server.c ConexaoRawSocket.o message.o common.o send_recieve.o files_and_dirs.o
+	gcc server.c ConexaoRawSocket.o message.o common.o send_recieve.o files_and_dirs.o -o server
 
 ConexaoRawSocket.o: ConexaoRawSocket.c ConexaoRawSocket.h
 	gcc -c ConexaoRawSocket.c -o ConexaoRawSocket.o
@@ -17,6 +17,9 @@ common.o: common.c common.h
 
 send_recieve.o: send_recieve.c send_recieve.h
 	gcc -c send_recieve.c -o send_recieve.o
+
+files_and_dirs.o: files_and_dirs.c files_and_dirs.h
+	gcc -c files_and_dirs.c -o files_and_dirs.o
 
 test: test.c
 	gcc test.c -o test
