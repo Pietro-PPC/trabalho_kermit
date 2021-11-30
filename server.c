@@ -32,10 +32,9 @@ void respondLs(int sock, struct sockaddr_ll *sockad, unsigned char *seq){
         }
         // Ordenar se der tempo
         closedir(working_dir);
-        buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, *seq);
-        fflush(stdin);
-        sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
     }// TODO: Criar else
+    buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, *seq);
+    sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
 }
 
 int main(){
@@ -60,8 +59,11 @@ int main(){
         else if (msg_type == CD_TYPE){ // A partir daqui, temos o código das mensagens
             int command_ret = executeCd(msg_data);
             
-            if (command_ret == 2 || command_ret == 20){
+            if (command_ret == 2 || command_ret == 20)
                 buildError(response, DIR_ER, seq);
+            else if (command_ret == 13){
+                printf("Deu ruim cuas permissão tudo\n");
+                buildError(response, PERM_ER, seq);
             }
             seq = (seq+1) % MAX_SEQ;
         }

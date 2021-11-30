@@ -29,6 +29,30 @@ void getCommand (char *command){
     } while(!strlen(command));
 }
 
+void getFiles(int sock, unsigned char *response, unsigned char *seq, struct sockaddr_ll *sockad){
+    // Recebe todo conteúdo do ls e depois um fim_transmissão (Vamos assumir que sim)
+    int ret;
+    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
+    unsigned char msg[MAX_MSG_SIZE];
+    ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
+    while(msg_type == LS_CONT_TYPE){ // se o ret for 2 pode ser que não seja realmente um ls
+        if (ret == 2)
+            buildNack(msg, CLIENT_ADD, SERVER_ADD, *seq);
+        else{
+            printf("%s\n", msg_data);
+            buildAck(msg, CLIENT_ADD, SERVER_ADD, *seq);
+            *seq = (*seq+1) % MAX_SEQ;
+        }
+        sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
+
+        getNextMessage(sock, response, CLIENT_ADD, *seq);
+        ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
+        if (ret == 2) msg_type = LS_CONT_TYPE; // Evitar que saia do loop com mensagem corrompida
+    } 
+    buildAck(msg, CLIENT_ADD, SERVER_ADD, *seq);
+    sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
+}
+
 int main(){
     struct sockaddr_ll sockad, packet_info; 
     int sock = ConexaoRawSocket(DEVICE, &sockad);
@@ -38,10 +62,15 @@ int main(){
     unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
     int ret;
 
-    while (strcmp(command, "exit")){
+    for (;;){
         getCommand(command);
-        if (buildMsgFromTxt(command, msg, seq))
+        if (!strcmp(command, "exit"))
+            break;
+
+        if (buildMsgFromTxt(command, msg, seq)){
+            fprintf(stderr, "Command not found!\n");
             continue;
+        }
 
         sendMessageInsist(sock, msg, &sockad, response, CLIENT_ADD, seq);
         ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
@@ -49,24 +78,7 @@ int main(){
         if (msg_type == ACK_TYPE)
             printf("ACK!!!\n");
         else if (msg_type == LS_CONT_TYPE){
-            // Recebe todo conteúdo do ls e depois um fim_transmissão (Vamos assumir que sim)
-            while(msg_type == LS_CONT_TYPE){ // se o ret for 2 pode ser que não seja realmente um ls
-                if (ret == 2)
-                    buildNack(msg, CLIENT_ADD, SERVER_ADD, seq);
-                else{
-                    printf("%s\n", msg_data);
-                    buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
-                    seq = (seq+1) % MAX_SEQ;
-                }
-                sendMessage(sock, msg, MAX_MSG_SIZE, &sockad);
-
-                getNextMessage(sock, response, CLIENT_ADD, seq);
-                ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
-                if (ret == 2) msg_type = LS_CONT_TYPE; // Evitar que saia do loop com mensagem corrompida
-            } 
-            // Se não reconheceu ultima mensagem, 
-            buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
-            sendMessage(sock, msg, MAX_MSG_SIZE, &sockad);
+            getFiles(sock, response, &seq, &sockad);
         }
         else if (msg_type == ERROR_TYPE){
             switch (msg_data[0]){
@@ -85,6 +97,8 @@ int main(){
                 default:
                     fprintf(stderr, "Got invalid error message\n");
             }
+        }
+        else if (msg_type == END_TRANSM_TYPE){
         }
         else
             fprintf(stderr, "Invalid message type\n");
