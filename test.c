@@ -2,7 +2,11 @@
 #include <string.h>
 
 int main(){
-    char *msg = "A string";
-    printf("res = %ld\n", strcspn(msg, "a"));
+    int i = 0;
+    do{
+        if (i == 3)
+            continue;
+        printf("%d\n", i);
+    } while (++i < 5);
     return 0;
 }

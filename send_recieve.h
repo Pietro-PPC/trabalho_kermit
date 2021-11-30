@@ -6,8 +6,10 @@
 
 #define BUF_SIZE 2048
 
-void sendMessage(int sock, char *msg, int msg_size, struct sockaddr_ll *sockad);
+int sendMessage(int sock, char *msg, int msg_size, struct sockaddr_ll *sockad);
 
-int recieveMessage(int sock, unsigned char *buffer, int buf_size, struct sockaddr_ll *packet_info);
+int getNextMessage(int sock, unsigned char *msg, unsigned char dest, unsigned char seq);
+
+void sendMessageInsist(int sock, unsigned char *msg, struct sockaddr_ll *sockad, unsigned char *response, unsigned char addr, unsigned char seq);
 
 #endif

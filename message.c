@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "message.h"
+#include "common.h"
 
 /***********
   FUNÇÕES ÚTEIS
@@ -29,7 +30,9 @@ void setType(unsigned char *msg, unsigned char type){
 }
 
 void setData(unsigned char *msg, unsigned char* data){
-    strncpy(msg+3, data, strlen(data));
+    int field_size = min(strlen(data), MAX_DATA_SIZE);
+    // printf("%s field size: %d\n", data, field_size); 
+    strncpy(msg+3, data, field_size);
 }
 
 void setParity(unsigned char *msg, unsigned char parity){
@@ -96,13 +99,41 @@ void buildError(unsigned char *parsed_msg, unsigned char error, unsigned char se
     setParity(parsed_msg, parity);
 }
 
+void buildLsFile(unsigned char *parsed_msg, unsigned char *name, unsigned char seq){
+    unsigned char msg_size = (unsigned char) min(strlen(name), MAX_DATA_SIZE);
+    unsigned char parity;
+
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, SERVER_ADD, CLIENT_ADD);
+    setSize(parsed_msg, msg_size);
+    setSeq(parsed_msg, seq);
+    setType(parsed_msg, LS_CONT_TYPE);
+    setData(parsed_msg, name);
+
+    parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+}
+
+void buildEndTransmission(unsigned char *parsed_msg, unsigned char src, unsigned char dst, unsigned char seq){
+    unsigned char parity;
+    
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, src, dst);
+    setSize(parsed_msg, 0);
+    setSeq(parsed_msg, seq);
+    setType(parsed_msg, END_TRANSM_TYPE);
+    
+    parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+}
+
 void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg){
     unsigned char dir[16];
     unsigned char msg_size;
 
     sscanf(raw_msg + strlen(CD_STR)+1, "%s", dir);
-    msg_size = (unsigned char) strlen(dir); 
-    setSize(parsed_msg, msg_size); // se for maior que 15 vai dar errado
+    msg_size = (unsigned char) min(strlen(dir), MAX_DATA_SIZE); 
+    setSize(parsed_msg, msg_size);
 
     setType(parsed_msg, CD_TYPE);
     setData(parsed_msg, dir);
@@ -117,7 +148,7 @@ void buildLs(unsigned char *raw_msg, unsigned char *parsed_msg){
     . 0 - Mensagem construída com sucesso
     . 1 - Fracasso ao construir mensagem
 */
-int buildMsg(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
+int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
     unsigned char command[MAX_CMD_LEN];
     unsigned char parity;
 

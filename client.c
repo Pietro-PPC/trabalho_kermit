@@ -15,6 +15,7 @@
 #include "common.h"
 #include "send_recieve.h"
 #include "files_and_dirs.h"
+#include "send_recieve.h"
 
 #define MAX_BUF 256
 #define DEVICE "lo"
@@ -34,30 +35,39 @@ int main(){
 
     char command[MAX_BUF] = "";
     unsigned char msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE], seq;
-    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE];
+    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
     int ret;
 
     while (strcmp(command, "exit")){
         getCommand(command);
-        if (buildMsg(command, msg, seq))
+        if (buildMsgFromTxt(command, msg, seq))
             continue;
-        do {
-            sendMessage(sock, msg, MAX_MSG_SIZE, &sockad);
-            // Pega mensagens até chegar uma endereçada ao client
-            do {
-                recieveMessage(sock, response, MAX_MSG_SIZE, &packet_info); // recebe resposta do server
-                ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
-            } while (ret == 1 || msg_dst != CLIENT_ADD || msg_sequence != seq);
-            // Não sei se precisa mandar nack caso ret seja 2
 
-            if (ret == 2) {
-                fprintf(stderr, "Fatal error! Response message corrupted!\n");
-                exit(1);
-            }
-        } while(msg_type == NACK_TYPE);
-
+        sendMessageInsist(sock, msg, &sockad, response, CLIENT_ADD, seq);
+        ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
+        
         if (msg_type == ACK_TYPE)
             printf("ACK!!!\n");
+        else if (msg_type == LS_CONT_TYPE){
+            // Recebe todo conteúdo do ls e depois um fim_transmissão (Vamos assumir que sim)
+            while(msg_type == LS_CONT_TYPE){ // se o ret for 2 pode ser que não seja realmente um ls
+                if (ret == 2)
+                    buildNack(msg, CLIENT_ADD, SERVER_ADD, seq);
+                else{
+                    printf("%s\n", msg_data);
+                    buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
+                    seq = (seq+1) % MAX_SEQ;
+                }
+                sendMessage(sock, msg, MAX_MSG_SIZE, &sockad);
+
+                getNextMessage(sock, response, CLIENT_ADD, seq);
+                ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
+                if (ret == 2) msg_type = LS_CONT_TYPE; // Evitar que saia do loop com mensagem corrompida
+            } 
+            // Se não reconheceu ultima mensagem, 
+            buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
+            sendMessage(sock, msg, MAX_MSG_SIZE, &sockad);
+        }
         else if (msg_type == ERROR_TYPE){
             switch (msg_data[0]){
                 case 1:
