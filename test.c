@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <errno.h>
 
 int main(){
-    int i = 0;
-    do{
-        if (i == 3)
-            continue;
-        printf("%d\n", i);
-    } while (++i < 5);
-    return 0;
+    char dir[100];
+    scanf("%s", dir);
+    int ret = 0;
+    if (chdir(dir))
+        ret = errno;
+    printf("ret: %d\n", ret);
 }

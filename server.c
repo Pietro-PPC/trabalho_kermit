@@ -60,7 +60,7 @@ int main(){
         else if (msg_type == CD_TYPE){ // A partir daqui, temos o código das mensagens
             int command_ret = executeCd(msg_data);
             
-            if (command_ret == 2){
+            if (command_ret == 2 || command_ret == 20){
                 buildError(response, DIR_ER, seq);
             }
             seq = (seq+1) % MAX_SEQ;
