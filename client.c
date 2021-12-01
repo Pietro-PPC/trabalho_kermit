@@ -80,6 +80,9 @@ int main(){
         else if (msg_type == LS_CONT_TYPE){
             getFiles(sock, response, &seq, &sockad);
         }
+        // else if (msg_type == FILE_CONT_TYPE){
+        //     getContent()
+        // }
         else if (msg_type == ERROR_TYPE){
             switch (msg_data[0]){
                 case 1:
