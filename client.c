@@ -29,17 +29,18 @@ void getCommand (char *command){
     } while(!strlen(command));
 }
 
-void getFiles(int sock, unsigned char *response, unsigned char *seq, struct sockaddr_ll *sockad){
+void getMultipleMsgs(int sock, unsigned char *response, unsigned char *seq, struct sockaddr_ll *sockad, int type){
     // Recebe todo conteúdo do ls e depois um fim_transmissão (Vamos assumir que sim)
     int ret;
-    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
+    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+2];
     unsigned char msg[MAX_MSG_SIZE];
     ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
-    while(msg_type == LS_CONT_TYPE){ // se o ret for 2 pode ser que não seja realmente um ls
+    while(msg_type == type){
         if (ret == 2)
             buildNack(msg, CLIENT_ADD, SERVER_ADD, *seq);
         else{
-            printf("%s\n", msg_data);
+            if (type == LS_CONT_TYPE) {msg_data[msg_size] = '\n'; msg_data[msg_size+1] = 0;}
+            printf("%s", msg_data);
             buildAck(msg, CLIENT_ADD, SERVER_ADD, *seq);
             *seq = (*seq+1) % MAX_SEQ;
         }
@@ -47,7 +48,7 @@ void getFiles(int sock, unsigned char *response, unsigned char *seq, struct sock
 
         getNextMessage(sock, response, CLIENT_ADD, *seq);
         ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
-        if (ret == 2) msg_type = LS_CONT_TYPE; // Evitar que saia do loop com mensagem corrompida
+        if (ret == 2) msg_type = type; // Evitar que saia do loop com mensagem corrompida
     } 
     buildAck(msg, CLIENT_ADD, SERVER_ADD, *seq);
     sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
@@ -78,11 +79,11 @@ int main(){
         if (msg_type == ACK_TYPE)
             printf("ACK!!!\n");
         else if (msg_type == LS_CONT_TYPE){
-            getFiles(sock, response, &seq, &sockad);
+            getMultipleMsgs(sock, response, &seq, &sockad, LS_CONT_TYPE);
         }
-        // else if (msg_type == FILE_CONT_TYPE){
-        //     getContent()
-        // }
+        else if (msg_type == FILE_CONT_TYPE){
+            getMultipleMsgs(sock, response, &seq, &sockad, FILE_CONT_TYPE);
+        }
         else if (msg_type == ERROR_TYPE){
             switch (msg_data[0]){
                 case 1:

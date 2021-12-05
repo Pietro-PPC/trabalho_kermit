@@ -39,6 +39,7 @@ int getNextMessage(int sock, unsigned char *msg, unsigned char dest, unsigned ch
         . 0: Recebeu ack
         . 1: Timeout (não implementado)
         . 2: resposta corrompida?
+    TODO: remover parametro de seq
 */
 void sendMessageInsist(int sock, unsigned char *msg, struct sockaddr_ll *sockad, unsigned char *response, unsigned char addr, unsigned char seq){
     int ret;

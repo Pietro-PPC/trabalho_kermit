@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <string.h>
+#include <errno.h>
 
 #include "ConexaoRawSocket.h"
 #include "message.h"
@@ -37,6 +38,42 @@ void respondLs(int sock, struct sockaddr_ll *sockad, unsigned char *seq){
     sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
 }
 
+/*
+    Retorna quantos caracteres foram passados para buf
+*/
+void getChars(FILE *f, int charNum, unsigned char *buf){
+    int i = 0;
+    while( i < charNum && !feof(f)){
+        buf[i++] = fgetc(f);
+    }
+    if (feof(f)) i--;
+    buf[i] = 0;
+}
+
+void respondVer(int sock, struct sockaddr_ll *sockad, unsigned char *seq, unsigned char *filename){
+    // ler 15 por 15 caracteres da mensagem até encontrar EOF
+        // Mandar 15 caracteres
+    unsigned char buf[MAX_DATA_SIZE+1], msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
+    
+    FILE *f = fopen(filename, "r");
+    if (!f){
+        buildError(msg, 1, *seq); // TODO: parsear o erro dentro da funcao
+        sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
+        return;
+    }
+
+    while (!feof(f)){
+        getChars(f, MAX_DATA_SIZE, buf);
+        buildFileContent(msg, buf, *seq);
+        sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
+        *seq = (*seq+1) % MAX_SEQ;
+    }
+    buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, *seq);
+    sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
+
+    fclose(f);
+}
+
 int main(){
 
     struct sockaddr_ll sockad, packet_info;
@@ -59,16 +96,19 @@ int main(){
         else if (msg_type == CD_TYPE){ // A partir daqui, temos o código das mensagens
             int command_ret = executeCd(msg_data);
             
-            if (command_ret == 2 || command_ret == 20)
-                buildError(response, DIR_ER, seq);
-            else if (command_ret == 13){
-                printf("Deu ruim cuas permissão tudo\n");
+            if (command_ret == 2 || command_ret == 20) // Diretório com esse nome não existe
+                buildError(response, DIR_ER, seq); 
+            else if (command_ret == 13){ // Sem permissão para acessar diretório.
                 buildError(response, PERM_ER, seq);
             }
             seq = (seq+1) % MAX_SEQ;
         }
         else if (msg_type == LS_TYPE){
             respondLs(sock, &sockad, &seq);
+            seq = (seq+1) % MAX_SEQ;
+        }
+        else if (msg_type == VER_TYPE){
+            respondVer(sock, &sockad, &seq, msg_data);
             seq = (seq+1) % MAX_SEQ;
         }
         else {

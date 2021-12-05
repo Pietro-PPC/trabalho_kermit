@@ -114,6 +114,22 @@ void buildLsFile(unsigned char *parsed_msg, unsigned char *name, unsigned char s
     setParity(parsed_msg, parity);
 }
 
+
+void buildFileContent(unsigned char *parsed_msg, unsigned char *content, unsigned char seq){
+    unsigned char size = (unsigned char) min(strlen(content), MAX_DATA_SIZE); // questão de segurança
+    unsigned char parity;
+
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, SERVER_ADD, CLIENT_ADD);
+    setSize(parsed_msg, size);
+    setSeq(parsed_msg, seq);
+    setType(parsed_msg, FILE_CONT_TYPE);
+    setData(parsed_msg, content);
+
+    parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+}
+
 void buildEndTransmission(unsigned char *parsed_msg, unsigned char src, unsigned char dst, unsigned char seq){
     unsigned char parity;
     
@@ -143,17 +159,18 @@ void buildLs(unsigned char *raw_msg, unsigned char *parsed_msg){
     setType(parsed_msg, LS_TYPE);
 }
 
-// void buildVer(unsigned char *raw_msg, unsigned char *parsed_msg){
-//     unsigned char file[16];
-//     unsigned char msg_size;
+void buildVer(unsigned char *raw_msg, unsigned char *parsed_msg){
+    unsigned char file[16];
+    unsigned char msg_size;
 
-//     sscanf(raw_msg + strlen(VER_STR)+1, "%s", file);
-//     msg_size = (unsigned char) min(strlen(file), MAX_DATA_SIZE);
-//     setSize(parsed_msg, file);
+    sscanf(raw_msg + strlen(VER_STR)+1, "%s", file);
+    msg_size = (unsigned char) min(strlen(file), MAX_DATA_SIZE);
+    setSize(parsed_msg, msg_size);
 
-//     setType(parsed_msg, VER_TYPE);
-//     setData(parsed_msg, file);
-// }
+    setType(parsed_msg, VER_TYPE);
+    setData(parsed_msg, file);
+}
+
 
 /*
   Retornos: 
@@ -176,9 +193,9 @@ int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned 
     else if (!strcmp(command, LS_STR)){ // TODO: Talvez colocar um warning caso ls tenha argumentos 
         buildLs(raw_msg, parsed_msg);
     }
-    // else if (!strcmp(command, VER_STR)){
-    //     buildVer(raw_msg, parsed_msg);
-    // }
+    else if (!strcmp(command, VER_STR)){
+        buildVer(raw_msg, parsed_msg);
+    }
     else 
         return 1;
         

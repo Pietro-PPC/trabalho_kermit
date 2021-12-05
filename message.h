@@ -12,6 +12,7 @@
 
 #define CD_STR "cd"
 #define LS_STR "ls"
+#define VER_STR "ver"
 
 #define CD_TYPE 0x00
 #define LS_TYPE 0x01
@@ -46,6 +47,8 @@ void buildNack(unsigned char *parsed_msg, unsigned char src, unsigned char dst, 
 void buildError(unsigned char *parsed_msg, unsigned char error, unsigned char seq);
 
 void buildLsFile(unsigned char *parsed_msg, unsigned char *name, unsigned char seq);
+
+void buildFileContent(unsigned char *parsed_msg, unsigned char *content, unsigned char seq);
 
 void buildEndTransmission(unsigned char *parsed_msg, unsigned char src, unsigned char dst, unsigned char seq);
 
