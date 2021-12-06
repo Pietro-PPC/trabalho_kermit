@@ -51,8 +51,6 @@ void getChars(FILE *f, int charNum, unsigned char *buf){
 }
 
 void respondVer(int sock, struct sockaddr_ll *sockad, unsigned char *seq, unsigned char *filename){
-    // ler 15 por 15 caracteres da mensagem até encontrar EOF
-        // Mandar 15 caracteres
     unsigned char buf[MAX_DATA_SIZE+1], msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
     
     FILE *f = fopen(filename, "r");
@@ -92,6 +90,7 @@ int main(){
         buildAck(response, SERVER_ADD, CLIENT_ADD, seq);
         if (ret == 2){
             buildNack(response, SERVER_ADD, CLIENT_ADD, seq);
+            sendMessage(sock, response, MAX_MSG_SIZE, &sockad);
         }
         else if (msg_type == CD_TYPE){ // A partir daqui, temos o código das mensagens
             int command_ret = executeCd(msg_data);
@@ -101,6 +100,7 @@ int main(){
             else if (command_ret == 13){ // Sem permissão para acessar diretório.
                 buildError(response, PERM_ER, seq);
             }
+            sendMessage(sock, response, MAX_MSG_SIZE, &sockad);
             seq = (seq+1) % MAX_SEQ;
         }
         else if (msg_type == LS_TYPE){
@@ -114,7 +114,6 @@ int main(){
         else {
             fprintf(stderr, "Command unavailable! %d\n", msg_type);
         }
-        sendMessage(sock, response, MAX_MSG_SIZE, &sockad);
         
     }
 

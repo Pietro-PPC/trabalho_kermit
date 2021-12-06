@@ -1,6 +1,7 @@
 #ifndef __MESSAGE__
 #define __MESSAGE__
 
+#define MAX_BUF_LEN 256
 #define MAX_CMD_LEN 10
 #define MAX_MSG_SIZE 19
 #define MAX_DATA_SIZE 15

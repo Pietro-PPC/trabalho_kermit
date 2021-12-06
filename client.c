@@ -29,18 +29,39 @@ void getCommand (char *command){
     } while(!strlen(command));
 }
 
+void printDirectory(unsigned char *msg_data){
+    printf("%s\n", msg_data);
+}
+
+void printFileContent(unsigned char *msg_data, int *line){
+    char *c = msg_data;
+    while (*c){
+        putchar(*c);
+        if (*c == '\n')
+            printf("%3d ", ++(*line));
+        c++;
+    }
+}
+
 void getMultipleMsgs(int sock, unsigned char *response, unsigned char *seq, struct sockaddr_ll *sockad, int type){
     // Recebe todo conteúdo do ls e depois um fim_transmissão (Vamos assumir que sim)
-    int ret;
+    int ret, line = 1;
     unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+2];
     unsigned char msg[MAX_MSG_SIZE];
+
+    if (type == FILE_CONT_TYPE)
+        printf("  1 ");
+
     ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
     while(msg_type == type){
         if (ret == 2)
             buildNack(msg, CLIENT_ADD, SERVER_ADD, *seq);
         else{
-            if (type == LS_CONT_TYPE) {msg_data[msg_size] = '\n'; msg_data[msg_size+1] = 0;}
-            printf("%s", msg_data);
+            if (type == LS_CONT_TYPE)
+                printDirectory(msg_data);
+            else if (type == FILE_CONT_TYPE)
+                printFileContent(msg_data, &line);
+            
             buildAck(msg, CLIENT_ADD, SERVER_ADD, *seq);
             *seq = (*seq+1) % MAX_SEQ;
         }
@@ -83,6 +104,7 @@ int main(){
         }
         else if (msg_type == FILE_CONT_TYPE){
             getMultipleMsgs(sock, response, &seq, &sockad, FILE_CONT_TYPE);
+            printf("\n");
         }
         else if (msg_type == ERROR_TYPE){
             switch (msg_data[0]){

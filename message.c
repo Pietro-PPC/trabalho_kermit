@@ -178,7 +178,7 @@ void buildVer(unsigned char *raw_msg, unsigned char *parsed_msg){
     . 1 - Fracasso ao construir mensagem
 */
 int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
-    unsigned char command[MAX_CMD_LEN];
+    unsigned char command[MAX_BUF_LEN];
     unsigned char parity;
 
     sscanf(raw_msg, "%s", command);
