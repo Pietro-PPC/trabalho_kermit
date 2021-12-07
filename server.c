@@ -38,9 +38,6 @@ void respondLs(int sock, struct sockaddr_ll *sockad, unsigned char *seq){
     sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
 }
 
-/*
-    Retorna quantos caracteres foram passados para buf
-*/
 void getChars(FILE *f, int charNum, unsigned char *buf){
     int i = 0;
     while( i < charNum && !feof(f)){
@@ -49,10 +46,46 @@ void getChars(FILE *f, int charNum, unsigned char *buf){
     if (feof(f)) i--;
     buf[i] = 0;
 }
+/*
+    Retornos: 
+    . 0: Não acabou linha
+    . 1: Acabou linha
+*/
+int getCharsLine(FILE *f, int charNum, unsigned char *buf){
+    int i = 0, ret = 0;
+    buf[i++] = fgetc(f);
+    while (i < charNum && !feof(f) && buf[i-1] != '\n'){
+        buf[i++] = fgetc(f);
+    }
+    if (feof(f) || buf[i-1] == '\n'){
+        ret = 1;
+        i--;
+    }
+    buf[i] = 0;
+    return ret;
+}
+
+/*
+    Retornos:
+        . 0: linha existe
+        . 1: Linha não existe
+*/
+int iterateLineNum(FILE *f, int lineNum){
+    int i = 1;
+    char c;
+    while (i < lineNum && !feof(f)){
+        do{
+            c = fgetc(f);
+        } while (c != '\n' && !feof(f));
+        ++i;
+    }
+    if (feof(f)) return 1;
+    return 0;
+}
 
 void respondVer(int sock, struct sockaddr_ll *sockad, unsigned char *seq, unsigned char *filename){
     unsigned char buf[MAX_DATA_SIZE+1], msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
-    
+
     FILE *f = fopen(filename, "r");
     if (!f){
         buildError(msg, 1, *seq); // TODO: parsear o erro dentro da funcao
@@ -62,6 +95,42 @@ void respondVer(int sock, struct sockaddr_ll *sockad, unsigned char *seq, unsign
 
     while (!feof(f)){
         getChars(f, MAX_DATA_SIZE, buf);
+        buildFileContent(msg, buf, *seq);
+        sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
+        *seq = (*seq+1) % MAX_SEQ;
+    }
+    buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, *seq);
+    sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
+
+    fclose(f);
+}
+
+void respondLinha(int sock, struct sockaddr_ll *sockad, unsigned char *seq, unsigned char *filename){
+    unsigned char buf[MAX_DATA_SIZE+1], msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
+    int fimMensagem, lineNum;
+    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
+    
+    FILE *f = fopen(filename, "r");
+    if (!f){
+        buildError(msg, FILE_ER, *seq); // TODO: parsear o erro dentro da funcao
+        sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
+        *seq = (*seq+1) % MAX_SEQ; // Isso deveria ser eliminado da face da terra mas deixa assim por enquanto
+        return;
+    }
+    buildAck(msg, SERVER_ADD, CLIENT_ADD, *seq);
+    sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
+    *seq = nextSeq(*seq);
+
+    getNextMessage(sock, msg, SERVER_ADD, *seq);
+    if (iterateLineNum(f, getLineNum(msg))){
+        buildError(msg, LINE_ER, *seq);
+        sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
+        return;
+    }
+
+    fimMensagem = 0;
+    while (!fimMensagem){
+        fimMensagem = getCharsLine(f, MAX_DATA_SIZE, buf);
         buildFileContent(msg, buf, *seq);
         sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
         *seq = (*seq+1) % MAX_SEQ;
@@ -109,6 +178,10 @@ int main(){
         }
         else if (msg_type == VER_TYPE){
             respondVer(sock, &sockad, &seq, msg_data);
+            seq = (seq+1) % MAX_SEQ;
+        }
+        else if (msg_type == LINHA_TYPE){
+            respondLinha(sock, &sockad, &seq, msg_data);
             seq = (seq+1) % MAX_SEQ;
         }
         else {

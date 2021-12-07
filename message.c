@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "message.h"
@@ -31,7 +32,6 @@ void setType(unsigned char *msg, unsigned char type){
 
 void setData(unsigned char *msg, unsigned char* data){
     int field_size = min(strlen(data), MAX_DATA_SIZE);
-    // printf("%s field size: %d\n", data, field_size); 
     strncpy(msg+3, data, field_size);
 }
 
@@ -51,6 +51,23 @@ unsigned char calcParity(unsigned char *parsed_msg){
     }
 
     return parity;
+}
+
+/*
+    Retorna o número da linha inicial em mensagem de linhas.
+    Caso não seja mensagem desse tipo, retorna -1.
+*/
+int getLineNum(unsigned char *parsed_msg){
+    unsigned char type = parsed_msg[2] & 0x0F;
+    int num;
+
+    if (type != LINE_LIMITS_TYPE) return -1;
+    memcpy(&num, parsed_msg+3, sizeof(int));
+    return num;
+}
+
+unsigned char nextSeq(unsigned char seq){
+    return (seq+1) % MAX_SEQ;
 }
 
 /*******************
@@ -160,7 +177,7 @@ void buildLs(unsigned char *raw_msg, unsigned char *parsed_msg){
 }
 
 void buildVer(unsigned char *raw_msg, unsigned char *parsed_msg){
-    unsigned char file[16];
+    unsigned char file[MAX_DATA_SIZE+1];
     unsigned char msg_size;
 
     sscanf(raw_msg + strlen(VER_STR)+1, "%s", file);
@@ -171,13 +188,44 @@ void buildVer(unsigned char *raw_msg, unsigned char *parsed_msg){
     setData(parsed_msg, file);
 }
 
+void buildLinha(unsigned char *raw_msg, unsigned char *parsed_msg){
+    unsigned char file[MAX_DATA_SIZE+1], lineNum[MAX_INT_LEN+1];
+    unsigned char msg_size;
+
+    sscanf(raw_msg + strlen(LINHA_STR)+1, "%s %s", lineNum, file);
+    msg_size = (unsigned char) min(strlen(file), MAX_DATA_SIZE);
+    setSize(parsed_msg, msg_size);
+
+    setType(parsed_msg, LINHA_TYPE);
+    setData(parsed_msg, file);
+}
+
+void buildValorLinha(unsigned char *raw_msg, unsigned char *parsed_msg){
+    unsigned char lineNumBuf[MAX_BUF_LEN], lineNum[MAX_DATA_SIZE/2];
+    unsigned char msg_size;
+    int i;
+
+    sscanf(raw_msg + strlen(LINHA_STR)+1, "%s", lineNumBuf);
+    i = atoi(lineNumBuf);
+    memcpy(lineNum, &i, sizeof(int));
+    msg_size = sizeof(int);
+
+    setSize(parsed_msg, msg_size);
+    setType(parsed_msg, LINE_LIMITS_TYPE);
+    setData(parsed_msg, lineNum);
+}
+
+// void buildValorLinhas(unsigned char *raw_msg, unsigned char *parsed_msg){
+
+// }
+
 
 /*
   Retornos: 
     . 0 - Mensagem construída com sucesso
     . 1 - Fracasso ao construir mensagem
 */
-int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
+int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq, int rep){
     unsigned char command[MAX_BUF_LEN];
     unsigned char parity;
 
@@ -195,6 +243,10 @@ int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned 
     }
     else if (!strcmp(command, VER_STR)){
         buildVer(raw_msg, parsed_msg);
+    }
+    else if (!strcmp(command, LINHA_STR)){
+        if (rep == 1) buildLinha(raw_msg, parsed_msg);
+        else if (rep == 2) buildValorLinha(raw_msg, parsed_msg);
     }
     else 
         return 1;
@@ -233,3 +285,11 @@ int parseMsg(unsigned char *msg, unsigned char *msg_dst, unsigned char *msg_size
     }
     return 0;
 }
+// Pode ser útil ter essas funções
+// unsigned char getMsgStart();
+// unsigned char getMsgSrc();
+// unsigned char getMsgSize();
+// unsigned char getMsgSeq();
+// unsigned char getMsgType();
+// void getMsgData();
+// unsigned char getMsgParity();

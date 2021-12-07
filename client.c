@@ -1,3 +1,11 @@
+/*
+TODO: 
+    . Retorno de erro quanto arquivo não existe
+    . Alguns outros retornos de erro, meio q tem q ver tudo
+    . Timeout
+    . Linhas negativas permitidas
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,12 +29,12 @@
 #define DEVICE "lo"
 
 
-void getCommand (char *command){
+void getPromptLine (char *promptLine){
     do {
         printf(">>> ");
-        fgets(command, MAX_BUF, stdin); 
-        command[strcspn(command, "\n")] = '\0';
-    } while(!strlen(command));
+        fgets(promptLine, MAX_BUF, stdin); 
+        promptLine[strcspn(promptLine, "\n")] = '\0';
+    } while(!strlen(promptLine));
 }
 
 void printDirectory(unsigned char *msg_data){
@@ -43,14 +51,15 @@ void printFileContent(unsigned char *msg_data, int *line){
     }
 }
 
-void getMultipleMsgs(int sock, unsigned char *response, unsigned char *seq, struct sockaddr_ll *sockad, int type){
+// falta especificar a linha que vai começar
+void getMultipleMsgs(int sock, unsigned char *response, unsigned char *seq, struct sockaddr_ll *sockad, int type, int first_line){
     // Recebe todo conteúdo do ls e depois um fim_transmissão (Vamos assumir que sim)
     int ret, line = 1;
     unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+2];
     unsigned char msg[MAX_MSG_SIZE];
 
     if (type == FILE_CONT_TYPE)
-        printf("  1 ");
+        printf("%3d ", first_line);
 
     ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
     while(msg_type == type){
@@ -79,31 +88,47 @@ int main(){
     struct sockaddr_ll sockad, packet_info; 
     int sock = ConexaoRawSocket(DEVICE, &sockad);
 
-    char command[MAX_BUF] = "";
+    char promptLine[MAX_BUF] = "", command[MAX_BUF];
     unsigned char msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE], seq;
     unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
-    int ret;
+    int ret, reps, err, lin_ini;
 
     for (;;){
-        getCommand(command);
-        if (!strcmp(command, "exit"))
+        getPromptLine(promptLine);
+        if (!strcmp(promptLine, "exit"))
             break;
 
-        if (buildMsgFromTxt(command, msg, seq)){
-            fprintf(stderr, "Command not found!\n");
-            continue;
-        }
+        sscanf(promptLine, "%s", command);
+        reps = 1;
+        if (!strcmp(command, "linha"))
+            reps = 2;
 
-        sendMessageInsist(sock, msg, &sockad, response, CLIENT_ADD, seq);
-        ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
-        
+        err = 0;
+        msg_type = NEUTRAL_TYPE;
+
+        for (int i = 1; i <= reps && !err && msg_type != ERROR_TYPE; ++i){
+            if (err = buildMsgFromTxt(promptLine, msg, seq, i)){
+                fprintf(stderr, "Command not found!\n");
+            }
+            else {
+                sendMessageInsist(sock, msg, &sockad, response, CLIENT_ADD, seq);
+                if (i < reps) seq = (seq+1) % MAX_SEQ; 
+                ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
+            }
+        }
+        if (err) continue;
+
         if (msg_type == ACK_TYPE)
             printf("ACK!!!\n");
         else if (msg_type == LS_CONT_TYPE){
-            getMultipleMsgs(sock, response, &seq, &sockad, LS_CONT_TYPE);
+            getMultipleMsgs(sock, response, &seq, &sockad, LS_CONT_TYPE, 0);
         }
         else if (msg_type == FILE_CONT_TYPE){
-            getMultipleMsgs(sock, response, &seq, &sockad, FILE_CONT_TYPE);
+            lin_ini = 1;
+            if (!strcmp(command, "linha"))
+                lin_ini = getLineNum(msg);
+            
+            getMultipleMsgs(sock, response, &seq, &sockad, FILE_CONT_TYPE, lin_ini);
             printf("\n");
         }
         else if (msg_type == ERROR_TYPE){
