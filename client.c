@@ -4,6 +4,8 @@ TODO:
     . Alguns outros retornos de erro, meio q tem q ver tudo
     . Timeout
     . Linhas negativas permitidas
+    . Testar no ver se arquivo é diretório
+    . Testar se segunda mensagem do linha/linhas é mesmo numeros de linha
 */
 
 #include <stdio.h>
@@ -52,14 +54,14 @@ void printFileContent(unsigned char *msg_data, int *line){
 }
 
 // falta especificar a linha que vai começar
-void getMultipleMsgs(int sock, unsigned char *response, unsigned char *seq, struct sockaddr_ll *sockad, int type, int first_line){
+void getMultipleMsgs(int sock, unsigned char *response, unsigned char *seq, struct sockaddr_ll *sockad, int type, int line){
     // Recebe todo conteúdo do ls e depois um fim_transmissão (Vamos assumir que sim)
-    int ret, line = 1;
+    int ret;
     unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+2];
     unsigned char msg[MAX_MSG_SIZE];
 
     if (type == FILE_CONT_TYPE)
-        printf("%3d ", first_line);
+        printf("%3d ", line);
 
     ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
     while(msg_type == type){
@@ -100,7 +102,7 @@ int main(){
 
         sscanf(promptLine, "%s", command);
         reps = 1;
-        if (!strcmp(command, "linha"))
+        if (!strcmp(command, LINHA_STR) || !strcmp(command, LINHAS_STR))
             reps = 2;
 
         err = 0;
@@ -125,24 +127,24 @@ int main(){
         }
         else if (msg_type == FILE_CONT_TYPE){
             lin_ini = 1;
-            if (!strcmp(command, "linha"))
-                lin_ini = getLineNum(msg);
+            if (!strcmp(command, LINHA_STR) || !strcmp(command, LINHAS_STR))
+                lin_ini = getFirstLineNum(msg);
             
             getMultipleMsgs(sock, response, &seq, &sockad, FILE_CONT_TYPE, lin_ini);
             printf("\n");
         }
         else if (msg_type == ERROR_TYPE){
             switch (msg_data[0]){
-                case 1:
+                case PERM_ER:
                     fprintf(stderr, "Error: Permisison denied.\n");
                     break;
-                case 2:
+                case DIR_ER:
                     fprintf(stderr, "Error: No such directory.\n");
                     break;
-                case 3:
+                case FILE_ER:
                     fprintf(stderr, "Error: No such file\n");
                     break;
-                case 4:
+                case LINE_ER:
                     fprintf(stderr, "Error: No such line number\n");
                     break;
                 default:

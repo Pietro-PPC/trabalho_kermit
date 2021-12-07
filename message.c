@@ -57,12 +57,21 @@ unsigned char calcParity(unsigned char *parsed_msg){
     Retorna o número da linha inicial em mensagem de linhas.
     Caso não seja mensagem desse tipo, retorna -1.
 */
-int getLineNum(unsigned char *parsed_msg){
+int getFirstLineNum(unsigned char *parsed_msg){
     unsigned char type = parsed_msg[2] & 0x0F;
     int num;
 
     if (type != LINE_LIMITS_TYPE) return -1;
     memcpy(&num, parsed_msg+3, sizeof(int));
+    return num;
+}
+
+int getLastLineNum(unsigned char *parsed_msg){
+    unsigned char type = parsed_msg[2] & 0x0F;
+    int num;
+
+    if (type != LINE_LIMITS_TYPE) return -1;
+    memcpy(&num, parsed_msg+3+sizeof(int), sizeof(int));
     return num;
 }
 
@@ -202,23 +211,47 @@ void buildLinha(unsigned char *raw_msg, unsigned char *parsed_msg){
 
 void buildValorLinha(unsigned char *raw_msg, unsigned char *parsed_msg){
     unsigned char lineNumBuf[MAX_BUF_LEN], lineNum[MAX_DATA_SIZE/2];
-    unsigned char msg_size;
     int i;
 
     sscanf(raw_msg + strlen(LINHA_STR)+1, "%s", lineNumBuf);
     i = atoi(lineNumBuf);
     memcpy(lineNum, &i, sizeof(int));
-    msg_size = sizeof(int);
 
-    setSize(parsed_msg, msg_size);
+    setSize(parsed_msg, sizeof(int));
     setType(parsed_msg, LINE_LIMITS_TYPE);
     setData(parsed_msg, lineNum);
 }
 
-// void buildValorLinhas(unsigned char *raw_msg, unsigned char *parsed_msg){
+void buildLinhas(unsigned char *raw_msg, unsigned char *parsed_msg){
+    unsigned char file[MAX_DATA_SIZE+1], iniLineNum[MAX_INT_LEN+1], endLineNum[MAX_INT_LEN+1];
+    unsigned char msg_size;
 
-// }
+    sscanf(raw_msg + strlen(LINHAS_STR)+1, "%s %s %s", iniLineNum, endLineNum, file);
+    msg_size = (unsigned char) min(strlen(file), MAX_DATA_SIZE);
+    setSize(parsed_msg, msg_size);
 
+    setType(parsed_msg, LINHAS_TYPE);
+    setData(parsed_msg, file);
+}
+
+void buildValorLinhas(unsigned char *raw_msg, unsigned char *parsed_msg){
+    unsigned char iniLineNumBuf[MAX_BUF_LEN], endLineNumBuf[MAX_BUF_LEN], lineNum[MAX_DATA_SIZE/2];
+    int i;
+
+    sscanf(raw_msg + strlen(LINHA_STR)+1, "%s %s", iniLineNumBuf, endLineNumBuf);
+    // Copia primeira linha
+    i = atoi(iniLineNumBuf);
+    memcpy(lineNum, &i, sizeof(int));
+    setData(parsed_msg, lineNum);
+
+    // Copia segunda linha
+    i = atoi(endLineNumBuf);
+    memcpy(lineNum, &i, sizeof(int));
+    setData(parsed_msg + sizeof(int), lineNum);
+
+    setSize(parsed_msg, 2*sizeof(int));
+    setType(parsed_msg, LINE_LIMITS_TYPE);
+}
 
 /*
   Retornos: 
@@ -248,6 +281,10 @@ int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned 
         if (rep == 1) buildLinha(raw_msg, parsed_msg);
         else if (rep == 2) buildValorLinha(raw_msg, parsed_msg);
     }
+    else if (!strcmp(command, LINHAS_STR)){
+        if (rep == 1) buildLinhas(raw_msg, parsed_msg);
+        else if (rep == 2) buildValorLinhas(raw_msg, parsed_msg);
+    }
     else 
         return 1;
         
@@ -259,6 +296,10 @@ int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned 
 /*************************
  RECEBIMENTO DE MENSAGENS
 *************************/
+
+unsigned char getMsgType(unsigned char *msg){
+    return msg[2] & 0x0F;
+}
 
 /*
     Retornos de erro

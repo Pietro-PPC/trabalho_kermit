@@ -42,6 +42,8 @@
 
 int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq, int rep);
 
+unsigned char getMsgType(unsigned char *msg);
+
 int parseMsg(unsigned char *msg, unsigned char *msg_dst, unsigned char *msg_size, 
               unsigned char *msg_sequence, unsigned char *msg_type, unsigned char *msg_data, 
               unsigned char *msg_parity);
@@ -58,7 +60,9 @@ void buildFileContent(unsigned char *parsed_msg, unsigned char *content, unsigne
 
 void buildEndTransmission(unsigned char *parsed_msg, unsigned char src, unsigned char dst, unsigned char seq);
 
-int getLineNum(unsigned char *parsed_msg);
+int getFirstLineNum(unsigned char *parsed_msg);
+
+int getLastLineNum(unsigned char *parsed_msg);
 
 unsigned char nextSeq(unsigned char seq);
 
