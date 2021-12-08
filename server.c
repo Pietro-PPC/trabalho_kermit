@@ -132,6 +132,7 @@ void respondLinha(int sock, struct sockaddr_ll *sockad, unsigned char *seq, unsi
     fimMensagem = 0;
     while (!fimMensagem){
         fimMensagem = getCharsLine(f, MAX_DATA_SIZE, buf);
+        if (fimMensagem && !feof(f)) buf[strlen(buf)-1] = 0;
         buildFileContent(msg, buf, *seq);
         sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
         *seq = (*seq+1) % MAX_SEQ;
@@ -147,6 +148,7 @@ void respondLinhas(int sock, struct sockaddr_ll *sockad, unsigned char *seq, uns
     int fimMensagem, cur_line, first_line, last_line;
     unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
     
+    // Testa se arquivo existe
     FILE *f = fopen(filename, "r");
     if (!f){
         buildError(msg, FILE_ER, *seq); // TODO: parsear o erro dentro da funcao
@@ -154,10 +156,12 @@ void respondLinhas(int sock, struct sockaddr_ll *sockad, unsigned char *seq, uns
         *seq = nextSeq(*seq); // Isso deveria ser eliminado da face da terra mas deixa assim por enquanto
         return;
     }
+    // Confirma que arquivo existe
     buildAck(msg, SERVER_ADD, CLIENT_ADD, *seq);
     sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
     *seq = nextSeq(*seq);
 
+    // Recebe linhas e testa se existem
     getNextMessage(sock, msg, SERVER_ADD, *seq);
     first_line = getFirstLineNum(msg);
     last_line = getLastLineNum(msg);
@@ -169,10 +173,10 @@ void respondLinhas(int sock, struct sockaddr_ll *sockad, unsigned char *seq, uns
     rewind(f);
     iterateLineNum(f,first_line);
 
-    fflush(stdin);
+    // Devolve linhas
     cur_line = first_line;
     while(cur_line <= last_line){
-        if (getCharsLine(f, MAX_DATA_SIZE, buf)){
+        if (getCharsLine(f, MAX_DATA_SIZE, buf)){ // Chegou em final de linha
             if (cur_line == last_line && !feof(f))
                 buf[strlen(buf)-1] = 0;
             cur_line++;

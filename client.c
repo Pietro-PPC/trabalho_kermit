@@ -6,6 +6,7 @@ TODO:
     . Linhas negativas permitidas
     . Testar no ver se arquivo é diretório
     . Testar se segunda mensagem do linha/linhas é mesmo numeros de linha
+    . Conferir mensagens nas rotinas do server
 */
 
 #include <stdio.h>
