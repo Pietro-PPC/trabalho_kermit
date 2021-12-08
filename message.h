@@ -7,6 +7,7 @@
 #define MAX_DATA_SIZE 15
 #define MAX_SEQ 16
 #define MAX_INT_LEN 10
+#define MAX_STREAM_LEN 1023
 
 #define START_MARKER 0x7E
 #define SERVER_ADD 2
@@ -39,6 +40,13 @@
 #define DIR_ER 2
 #define FILE_ER 3
 #define LINE_ER 4
+
+typedef struct msg_stream_s {
+    unsigned char stream[MAX_STREAM_LEN][MAX_MSG_SIZE];
+    int size;
+} msg_stream_t;
+
+void initMsgStream(msg_stream_t *s);
 
 int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq, int rep);
 

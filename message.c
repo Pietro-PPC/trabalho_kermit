@@ -5,6 +5,15 @@
 #include "message.h"
 #include "common.h"
 
+
+/**********************
+  FUNÇÕES PARA STREAM
+**********************/
+
+void initializeMsgStream(msg_stream_t *s){
+    s->size = 0;
+}
+
 /***********
   FUNÇÕES ÚTEIS
 ***********/

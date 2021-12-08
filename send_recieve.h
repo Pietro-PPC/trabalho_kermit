@@ -4,12 +4,18 @@
 #include <net/ethernet.h>
 #include <linux/if_packet.h>
 
+#include "message.h"
+
 #define BUF_SIZE 2048
 
 int sendMessage(int sock, char *msg, int msg_size, struct sockaddr_ll *sockad);
 
 int getNextMessage(int sock, unsigned char *msg, unsigned char dest, unsigned char seq);
 
+void getMessageInsist(int sock, unsigned char *msg, unsigned char src, unsigned char dest, unsigned char seq);
+
 void sendMessageInsist(int sock, unsigned char *msg, struct sockaddr_ll *sockad, unsigned char *response, unsigned char addr, unsigned char seq);
+
+void getMultipleMsgss(int sock, struct sockaddr_ll *sockad, msg_stream_t *s, unsigned char *seq, unsigned char dest);
 
 #endif
