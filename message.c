@@ -88,6 +88,10 @@ unsigned char nextSeq(unsigned char seq){
     return (seq+1) % MAX_SEQ;
 }
 
+unsigned char prevSeq(unsigned char seq){
+    return (seq-1 + MAX_SEQ) % MAX_SEQ;
+}
+
 /*******************
  ENVIO DE MENSAGENS
 *******************/
@@ -306,8 +310,23 @@ int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned 
  RECEBIMENTO DE MENSAGENS
 *************************/
 
+
+
+unsigned char getMsgSize(unsigned char *msg){
+    return msg[1] & 0x0F;
+}
+
+unsigned char getMsgSeq(unsigned char *msg){
+    return (msg[2] & 0xF0) >> 4;
+}
+
 unsigned char getMsgType(unsigned char *msg){
     return msg[2] & 0x0F;
+}
+
+void getMsgData(unsigned char *msg, unsigned char *data){
+    strncpy(data, msg+3, getMsgSize(msg));
+    data[getMsgSize(msg)] = '\0';
 }
 
 /*
@@ -343,3 +362,28 @@ int parseMsg(unsigned char *msg, unsigned char *msg_dst, unsigned char *msg_size
 // unsigned char getMsgType();
 // void getMsgData();
 // unsigned char getMsgParity();
+
+
+void notifySend(unsigned char *msg){
+    printf("Mandarei %x | %d\n", getMsgType(msg), getMsgSeq(msg)); fflush(stdin);
+}
+
+void notifyRecieve(unsigned char *msg){
+    printf("Recebi %x | %d\n", getMsgType(msg), getMsgSeq(msg)); fflush(stdin);
+}
+
+int pushMessage( msg_stream_t *s, unsigned char *msg){
+    if (s->size < MAX_STREAM_LEN)
+        strncpy(s->stream[ (s->size)++ ], msg, MAX_MSG_SIZE);
+    else
+        return 1;
+    return 0;
+}
+
+int rmLastMessage(msg_stream_t *s){
+    if (s->size > 0) 
+        (s->size)--;
+    else 
+        return 1;
+    return 0;
+}

@@ -3,3 +3,10 @@ Assim, não recebe pacotes duplos.
 
 Optei por calcular a paridade com a parte do tamanho do segundo byte
 e o terceiro byte inteiro, que tem seq e tipo
+
+So ack nack e erro mantem mesmo numero de sequencia.
+
+Se eu mandei uma mensagem e recebi um ack/erro, eu posso passar
+para o próximo seq
+
+Se eu leio uma mensagem (não ANE), eu posso passar para o próximo seq

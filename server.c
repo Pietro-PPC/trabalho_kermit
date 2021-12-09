@@ -27,13 +27,14 @@ void respondLs(int sock, struct sockaddr_ll *sockad, unsigned char *seq){
         while(cur_file = readdir(working_dir)){
             if (!strcmp(cur_file->d_name, ".") || !strcmp(cur_file->d_name, ".."))
                 continue;
+            *seq = nextSeq(*seq);
             buildLsFile(msg, cur_file->d_name, *seq);
             sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-            *seq = (*seq+1) % MAX_SEQ;
         }
         // Ordenar se der tempo
         closedir(working_dir);
     }// TODO: Criar else
+    *seq = nextSeq(*seq);
     buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, *seq);
     sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
 }
@@ -120,9 +121,9 @@ void respondLinha(int sock, struct sockaddr_ll *sockad, unsigned char *seq, unsi
     }
     buildAck(msg, SERVER_ADD, CLIENT_ADD, *seq);
     sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-    *seq = nextSeq(*seq);
+    *seq = nextSeq(*seq); // acho q era pra ser sendmessage so
 
-    getNextMessage(sock, msg, SERVER_ADD, *seq);
+    getNextMessage(sock, msg, SERVER_ADD, *seq, 0);
     if (iterateLineNum(f, getFirstLineNum(msg))){
         buildError(msg, LINE_ER, *seq);
         sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
@@ -162,7 +163,7 @@ void respondLinhas(int sock, struct sockaddr_ll *sockad, unsigned char *seq, uns
     *seq = nextSeq(*seq);
 
     // Recebe linhas e testa se existem
-    getNextMessage(sock, msg, SERVER_ADD, *seq);
+    getNextMessage(sock, msg, SERVER_ADD, *seq, 1);
     first_line = getFirstLineNum(msg);
     last_line = getLastLineNum(msg);
     if (iterateLineNum(f, last_line)){
@@ -202,11 +203,12 @@ int main(){
     char response[MAX_MSG_SIZE];
 
     printf("Server is on...\n");
+    getNextMessage(sock, buffer, SERVER_ADD, prevSeq(seq), 1);
     for (;;){
-        getNextMessage(sock, buffer, SERVER_ADD, seq);
+        notifyRecieve(buffer);
         ret = parseMsg(buffer, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
 
-        // Resposta padrão é um ACK
+        // Resposta padrão é um ACK para o comando recebido
         buildAck(response, SERVER_ADD, CLIENT_ADD, seq);
         if (ret == 2){
             buildNack(response, SERVER_ADD, CLIENT_ADD, seq);
@@ -221,11 +223,9 @@ int main(){
                 buildError(response, PERM_ER, seq);
             }
             sendMessage(sock, response, MAX_MSG_SIZE, &sockad);
-            seq = (seq+1) % MAX_SEQ;
         }
         else if (msg_type == LS_TYPE){
             respondLs(sock, &sockad, &seq);
-            seq = (seq+1) % MAX_SEQ;
         }
         else if (msg_type == VER_TYPE){
             respondVer(sock, &sockad, &seq, msg_data);
@@ -242,7 +242,8 @@ int main(){
         else {
             fprintf(stderr, "Command unavailable! %d\n", msg_type);
         }
-        
+        getNextMessage(sock, buffer, SERVER_ADD, seq, 1);
+        seq = nextSeq(seq);
     }
 
     printf("Server is off\n");

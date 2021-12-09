@@ -79,13 +79,22 @@ void getMultipleMsgs(int sock, unsigned char *response, unsigned char *seq, stru
         }
         sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
 
-        getNextMessage(sock, response, CLIENT_ADD, *seq);
+        getNextMessage(sock, response, CLIENT_ADD, *seq, 0);
         ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
         if (ret == 2) msg_type = type; // Evitar que saia do loop com mensagem corrompida
     } 
     buildAck(msg, CLIENT_ADD, SERVER_ADD, *seq);
     sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
 }
+
+int printFiles(msg_stream_t *msgStream){
+    unsigned char data[MAX_MSG_SIZE+1];
+    for (int i = 0; i < msgStream->size; ++i){
+        getMsgData(msgStream->stream[i], data);
+        printf("%s\n", data);
+    }
+}
+
 
 int main(){
     struct sockaddr_ll sockad, packet_info; 
@@ -127,8 +136,16 @@ int main(){
             printf("ACK!!!\n");
         else if (msg_type == LS_CONT_TYPE){
             // getMultipleMsgs(sock, response, &seq, &sockad, LS_CONT_TYPE, 0);
+            seq = nextSeq(seq);
             resetMsgStream(&msgStream);
-            getMultipleMsgss(sock, &msgStream, CLIENT_ADD, SERVER_ADD, &seq);
+            pushMessage(&msgStream, response);
+            buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
+            sendMessage(sock, msg, MAX_MSG_SIZE, NULL);
+            do{
+                ret = getMultipleMsgss(sock, &msgStream, SERVER_ADD, CLIENT_ADD, &seq);
+                printFiles(&msgStream);
+                resetMsgStream(&msgStream);
+            } while (ret);
         }
         else if (msg_type == FILE_CONT_TYPE){
             lin_ini = 1;
@@ -157,6 +174,9 @@ int main(){
             }
         }
         else if (msg_type == END_TRANSM_TYPE){
+            seq = nextSeq(seq);
+            buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
+            sendMessage(sock, msg, MAX_MSG_SIZE, NULL);
         }
         else
             fprintf(stderr, "Invalid message type\n");

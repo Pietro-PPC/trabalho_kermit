@@ -50,6 +50,8 @@ void resetMsgStream(msg_stream_t *s);
 
 int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq, int rep);
 
+void getMsgData(unsigned char *msg, unsigned char *data);
+unsigned char getMsgSeq(unsigned char *msg);
 unsigned char getMsgType(unsigned char *msg);
 
 int parseMsg(unsigned char *msg, unsigned char *msg_dst, unsigned char *msg_size, 
@@ -73,5 +75,14 @@ int getFirstLineNum(unsigned char *parsed_msg);
 int getLastLineNum(unsigned char *parsed_msg);
 
 unsigned char nextSeq(unsigned char seq);
+unsigned char prevSeq(unsigned char seq);
+
+void notifySend(unsigned char *msg);
+
+void notifyRecieve(unsigned char *msg);
+
+int pushMessage(msg_stream_t *s, unsigned char *msg);
+
+int rmLastMessage(msg_stream_t *s);
 
 #endif

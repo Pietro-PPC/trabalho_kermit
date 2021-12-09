@@ -10,12 +10,14 @@
 
 int sendMessage(int sock, char *msg, int msg_size, struct sockaddr_ll *sockad);
 
-int getNextMessage(int sock, unsigned char *msg, unsigned char dest, unsigned char seq);
+int getNextMessage(int sock, unsigned char *msg, unsigned char dest, unsigned char seq, int command);
 
 void getMessageInsist(int sock, unsigned char *msg, unsigned char src, unsigned char dest, unsigned char seq);
 
 void sendMessageInsist(int sock, unsigned char *msg, struct sockaddr_ll *sockad, unsigned char *response, unsigned char addr, unsigned char seq);
 
-void getMultipleMsgss(int sock, msg_stream_t *s, unsigned char src, unsigned char dest, unsigned char *seq);
+int getMultipleMsgss(int sock, msg_stream_t *s, unsigned char src, unsigned char dest, unsigned char *seq);
+
+int isANE(unsigned char *msg);
 
 #endif
