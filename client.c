@@ -87,6 +87,17 @@ void getMultipleMsgs(int sock, unsigned char *response, unsigned char *seq, stru
     sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
 }
 
+
+int printLines(msg_stream_t *msgStream, int lin_ini){
+    unsigned char data[MAX_MSG_SIZE+1];
+    int cur_lin = lin_ini;
+    printf("%3d ", cur_lin);
+    for (int i = 0; i < msgStream->size; ++i){
+        getMsgData(msgStream->stream[i], data);
+        printFileContent(data, &cur_lin);
+    }
+}
+
 int printFiles(msg_stream_t *msgStream){
     unsigned char data[MAX_MSG_SIZE+1];
     for (int i = 0; i < msgStream->size; ++i){
@@ -150,9 +161,19 @@ int main(){
         else if (msg_type == FILE_CONT_TYPE){
             lin_ini = 1;
             if (!strcmp(command, LINHA_STR) || !strcmp(command, LINHAS_STR))
-                lin_ini = getFirstLineNum(msg);
+                lin_ini = getFirstLineNum(msg); // Última mensagem mandada tem numero da linha
             
-            getMultipleMsgs(sock, response, &seq, &sockad, FILE_CONT_TYPE, lin_ini);
+            seq = nextSeq(seq);
+            resetMsgStream(&msgStream);
+            pushMessage(&msgStream, response);
+            buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
+            sendMessage(sock, msg, MAX_MSG_SIZE, NULL);
+
+            do {
+                ret = getMultipleMsgss(sock, &msgStream, SERVER_ADD, CLIENT_ADD, &seq);
+                printLines(&msgStream, lin_ini);
+                resetMsgStream(&msgStream);
+            } while(ret);
             printf("\n");
         }
         else if (msg_type == ERROR_TYPE){

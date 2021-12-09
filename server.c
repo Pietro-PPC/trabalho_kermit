@@ -97,10 +97,11 @@ void respondVer(int sock, struct sockaddr_ll *sockad, unsigned char *seq, unsign
 
     while (!feof(f)){
         getChars(f, MAX_DATA_SIZE, buf);
+        *seq = nextSeq(*seq);
         buildFileContent(msg, buf, *seq);
         sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-        *seq = (*seq+1) % MAX_SEQ;
     }
+    *seq = nextSeq(*seq);
     buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, *seq);
     sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
 
@@ -229,7 +230,6 @@ int main(){
         }
         else if (msg_type == VER_TYPE){
             respondVer(sock, &sockad, &seq, msg_data);
-            seq = (seq+1) % MAX_SEQ;
         }
         else if (msg_type == LINHA_TYPE){
             respondLinha(sock, &sockad, &seq, msg_data);
