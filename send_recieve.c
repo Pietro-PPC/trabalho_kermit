@@ -73,9 +73,22 @@ void getMessageInsist(int sock, unsigned char *msg, unsigned char src, unsigned 
         sendMessage(sock, msg, MAX_MSG_SIZE, NULL);
     }
 }
-
-void getMultipleMsgss(int sock, struct sockaddr_ll *sockad, msg_stream_t *s, unsigned char *seq, unsigned char dest){
-    int i = 0;
-    getNextMessage(sock, s->stream[i], dest, *seq);
-    while(0);
+/*
+    Retornos:
+        0: Transmissão finalizada
+        1: Transmissão não finalizada
+*/
+void getMultipleMsgss(int sock, msg_stream_t *s, unsigned char src, unsigned char dest, unsigned char *seq){
+    int *i = &(s->size), ret = 0;
+    unsigned char type;
+    do{
+        getMessageInsist(sock, s->stream[*i], src, dest, *seq);
+        type = getMsgType(s->stream[*i]);
+        (*i)++;
+    } while(type != END_TRANSM_TYPE && *i < MAX_STREAM_LEN);
+    if (type == END_TRANSM_TYPE) 
+        (*i)--; // Excluir fim da transmissão
+    else 
+        ret = 1;
+    return ret;
 }

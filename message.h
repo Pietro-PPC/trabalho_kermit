@@ -46,7 +46,7 @@ typedef struct msg_stream_s {
     int size;
 } msg_stream_t;
 
-void initMsgStream(msg_stream_t *s);
+void resetMsgStream(msg_stream_t *s);
 
 int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq, int rep);
 

@@ -16,6 +16,6 @@ void getMessageInsist(int sock, unsigned char *msg, unsigned char src, unsigned 
 
 void sendMessageInsist(int sock, unsigned char *msg, struct sockaddr_ll *sockad, unsigned char *response, unsigned char addr, unsigned char seq);
 
-void getMultipleMsgss(int sock, struct sockaddr_ll *sockad, msg_stream_t *s, unsigned char *seq, unsigned char dest);
+void getMultipleMsgss(int sock, msg_stream_t *s, unsigned char src, unsigned char dest, unsigned char *seq);
 
 #endif

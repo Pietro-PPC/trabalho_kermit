@@ -10,7 +10,7 @@
   FUNÇÕES PARA STREAM
 **********************/
 
-void initializeMsgStream(msg_stream_t *s){
+void resetMsgStream(msg_stream_t *s){
     s->size = 0;
 }
 

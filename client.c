@@ -95,6 +95,8 @@ int main(){
     unsigned char msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE], seq;
     unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
     int ret, reps, err, lin_ini;
+    msg_stream_t msgStream;
+    resetMsgStream(&msgStream);
 
     for (;;){
         getPromptLine(promptLine);
@@ -124,7 +126,9 @@ int main(){
         if (msg_type == ACK_TYPE)
             printf("ACK!!!\n");
         else if (msg_type == LS_CONT_TYPE){
-            getMultipleMsgs(sock, response, &seq, &sockad, LS_CONT_TYPE, 0);
+            // getMultipleMsgs(sock, response, &seq, &sockad, LS_CONT_TYPE, 0);
+            resetMsgStream(&msgStream);
+            getMultipleMsgss(sock, &msgStream, CLIENT_ADD, SERVER_ADD, &seq);
         }
         else if (msg_type == FILE_CONT_TYPE){
             lin_ini = 1;
