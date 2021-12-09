@@ -206,7 +206,7 @@ int main(){
     printf("Server is on...\n");
     getNextMessage(sock, buffer, SERVER_ADD, prevSeq(seq), 1);
     for (;;){
-        notifyRecieve(buffer);
+        // notifyRecieve(buffer);
         ret = parseMsg(buffer, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
 
         // Resposta padrão é um ACK para o comando recebido

@@ -10,7 +10,7 @@
 #include "message.h"
 
 int sendMessage(int sock, char *msg, int msg_size, struct sockaddr_ll *sockad){
-    notifySend(msg);
+    // notifySend(msg);
     int len = send(sock, msg, msg_size, 0);
     if (len < 0){
         fprintf(stderr, "Problem with sendto. Errno: %d\n", errno);
@@ -34,7 +34,7 @@ void sendMessageInsist(int sock, unsigned char *msg, struct sockaddr_ll *sockad,
     do { // Tenta enviar mensagem até conseguir
         if (!sendMessage(sock, msg, MAX_MSG_SIZE, sockad)){
             getNextMessage(sock, response, addr, seq, 0);
-            printf("sendinsist "); notifyRecieve(response);
+            // printf("sendinsist "); notifyRecieve(response);
             // Não sei se precisa mandar nack caso ret seja 2
             ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
             if (ret == 2) {
@@ -90,10 +90,10 @@ void getMessageInsist(int sock, unsigned char *msg, unsigned char src, unsigned 
     buildNack(response, dest, src, seq);
     while (getNextMessage(sock, msg, dest, seq, 1)){
         printf("Recebi Corrompida\n");
-        notifySend(response);
+        // notifySend(response);
         sendMessage(sock, response, MAX_MSG_SIZE, NULL);
     }
-    printf("getinsist ");notifyRecieve(msg);
+    // printf("getinsist ");notifyRecieve(msg);
     buildAck(response, dest, src, nextSeq(seq));
     sendMessage(sock, response, MAX_MSG_SIZE, NULL);
 }

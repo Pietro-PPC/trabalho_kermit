@@ -87,14 +87,11 @@ void getMultipleMsgs(int sock, unsigned char *response, unsigned char *seq, stru
     sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
 }
 
-
-int printLines(msg_stream_t *msgStream, int lin_ini){
+void printLines(msg_stream_t *msgStream, int* cur_lin){
     unsigned char data[MAX_MSG_SIZE+1];
-    int cur_lin = lin_ini;
-    printf("%3d ", cur_lin);
     for (int i = 0; i < msgStream->size; ++i){
         getMsgData(msgStream->stream[i], data);
-        printFileContent(data, &cur_lin);
+        printFileContent(data, cur_lin);
     }
 }
 
@@ -169,9 +166,10 @@ int main(){
             buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
             sendMessage(sock, msg, MAX_MSG_SIZE, NULL);
 
+            printf("%3d ", lin_ini);
             do {
                 ret = getMultipleMsgss(sock, &msgStream, SERVER_ADD, CLIENT_ADD, &seq);
-                printLines(&msgStream, lin_ini);
+                printLines(&msgStream, &lin_ini);
                 resetMsgStream(&msgStream);
             } while(ret);
             printf("\n");

@@ -7,7 +7,7 @@
 #define MAX_DATA_SIZE 15
 #define MAX_SEQ 16
 #define MAX_INT_LEN 10
-#define MAX_STREAM_LEN 1023
+#define MAX_STREAM_LEN 10
 
 #define START_MARKER 0x7E
 #define SERVER_ADD 2
