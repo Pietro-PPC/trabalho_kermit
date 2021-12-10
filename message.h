@@ -48,7 +48,7 @@ typedef struct msg_stream_s {
 
 void resetMsgStream(msg_stream_t *s);
 
-int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq, int rep);
+int buildMsgsFromTxt(unsigned char *raw_msg, msg_stream_t *parsed_msg, unsigned char seq);
 
 void getMsgData(unsigned char *msg, unsigned char *data);
 unsigned char getMsgSeq(unsigned char *msg);
@@ -71,7 +71,6 @@ void buildFileContent(unsigned char *parsed_msg, unsigned char *content, unsigne
 void buildEndTransmission(unsigned char *parsed_msg, unsigned char src, unsigned char dst, unsigned char seq);
 
 int getFirstLineNum(unsigned char *parsed_msg);
-
 int getLastLineNum(unsigned char *parsed_msg);
 
 unsigned char nextSeq(unsigned char seq);

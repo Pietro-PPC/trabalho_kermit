@@ -182,9 +182,13 @@ void buildEndTransmission(unsigned char *parsed_msg, unsigned char src, unsigned
     setParity(parsed_msg, parity);
 }
 
-void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg){
+void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
     unsigned char dir[16];
     unsigned char msg_size;
+
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+    setSeq(parsed_msg, seq);
 
     sscanf(raw_msg + strlen(CD_STR)+1, "%s", dir);
     msg_size = (unsigned char) min(strlen(dir), MAX_DATA_SIZE); 
@@ -192,15 +196,31 @@ void buildCd(unsigned char *raw_msg, unsigned char *parsed_msg){
 
     setType(parsed_msg, CD_TYPE);
     setData(parsed_msg, dir);
+
+    unsigned char parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+
 }
 
-void buildLs(unsigned char *raw_msg, unsigned char *parsed_msg){
+void buildLs(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+    setSeq(parsed_msg, seq);
+    
     setType(parsed_msg, LS_TYPE);
+
+    unsigned char parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+
 }
 
-void buildVer(unsigned char *raw_msg, unsigned char *parsed_msg){
+void buildVer(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
     unsigned char file[MAX_DATA_SIZE+1];
     unsigned char msg_size;
+
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+    setSeq(parsed_msg, seq);
 
     sscanf(raw_msg + strlen(VER_STR)+1, "%s", file);
     msg_size = (unsigned char) min(strlen(file), MAX_DATA_SIZE);
@@ -208,11 +228,19 @@ void buildVer(unsigned char *raw_msg, unsigned char *parsed_msg){
 
     setType(parsed_msg, VER_TYPE);
     setData(parsed_msg, file);
+
+    unsigned char parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+
 }
 
-void buildLinha(unsigned char *raw_msg, unsigned char *parsed_msg){
+void buildLinha(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
     unsigned char file[MAX_DATA_SIZE+1], lineNum[MAX_INT_LEN+1];
     unsigned char msg_size;
+
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+    setSeq(parsed_msg, seq);
 
     sscanf(raw_msg + strlen(LINHA_STR)+1, "%s %s", lineNum, file);
     msg_size = (unsigned char) min(strlen(file), MAX_DATA_SIZE);
@@ -220,11 +248,19 @@ void buildLinha(unsigned char *raw_msg, unsigned char *parsed_msg){
 
     setType(parsed_msg, LINHA_TYPE);
     setData(parsed_msg, file);
+
+    unsigned char parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+
 }
 
-void buildValorLinha(unsigned char *raw_msg, unsigned char *parsed_msg){
+void buildValorLinha(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
     unsigned char lineNumBuf[MAX_BUF_LEN], lineNum[MAX_DATA_SIZE/2];
     int i;
+    
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+    setSeq(parsed_msg, seq);
 
     sscanf(raw_msg + strlen(LINHA_STR)+1, "%s", lineNumBuf);
     i = atoi(lineNumBuf);
@@ -233,11 +269,19 @@ void buildValorLinha(unsigned char *raw_msg, unsigned char *parsed_msg){
     setSize(parsed_msg, sizeof(int));
     setType(parsed_msg, LINE_LIMITS_TYPE);
     setData(parsed_msg, lineNum);
+
+    unsigned char parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+
 }
 
-void buildLinhas(unsigned char *raw_msg, unsigned char *parsed_msg){
+void buildLinhas(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
     unsigned char file[MAX_DATA_SIZE+1], iniLineNum[MAX_INT_LEN+1], endLineNum[MAX_INT_LEN+1];
     unsigned char msg_size;
+
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+    setSeq(parsed_msg, seq);
 
     sscanf(raw_msg + strlen(LINHAS_STR)+1, "%s %s %s", iniLineNum, endLineNum, file);
     msg_size = (unsigned char) min(strlen(file), MAX_DATA_SIZE);
@@ -245,11 +289,18 @@ void buildLinhas(unsigned char *raw_msg, unsigned char *parsed_msg){
 
     setType(parsed_msg, LINHAS_TYPE);
     setData(parsed_msg, file);
+
+    unsigned char parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
 }
 
-void buildValorLinhas(unsigned char *raw_msg, unsigned char *parsed_msg){
+void buildValorLinhas(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
     unsigned char iniLineNumBuf[MAX_BUF_LEN], endLineNumBuf[MAX_BUF_LEN], lineNum[MAX_DATA_SIZE/2];
     int i;
+
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+    setSeq(parsed_msg, seq);
 
     sscanf(raw_msg + strlen(LINHA_STR)+1, "%s %s", iniLineNumBuf, endLineNumBuf);
     // Copia primeira linha
@@ -264,6 +315,9 @@ void buildValorLinhas(unsigned char *raw_msg, unsigned char *parsed_msg){
 
     setSize(parsed_msg, 2*sizeof(int));
     setType(parsed_msg, LINE_LIMITS_TYPE);
+
+    unsigned char parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
 }
 
 /*
@@ -271,38 +325,42 @@ void buildValorLinhas(unsigned char *raw_msg, unsigned char *parsed_msg){
     . 0 - Mensagem construída com sucesso
     . 1 - Fracasso ao construir mensagem
 */
-int buildMsgFromTxt(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq, int rep){
-    unsigned char command[MAX_BUF_LEN];
+int buildMsgsFromTxt(unsigned char *raw_msg, msg_stream_t *msgStream, unsigned char seq){
+    unsigned char command[MAX_BUF_LEN], parsed_msg[MAX_MSG_SIZE];
     unsigned char parity;
 
     sscanf(raw_msg, "%s", command);
-
-    initializeMsg(parsed_msg);
-    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
-    setSeq(parsed_msg, seq);
+    resetMsgStream(msgStream);
 
     if (!strcmp(command, CD_STR)){
-        buildCd(raw_msg, parsed_msg);
+        buildCd(raw_msg, parsed_msg, seq);
+        pushMessage(msgStream, parsed_msg);
     }
     else if (!strcmp(command, LS_STR)){ // TODO: Talvez colocar um warning caso ls tenha argumentos 
-        buildLs(raw_msg, parsed_msg);
+        buildLs(raw_msg, parsed_msg, seq);
+        pushMessage(msgStream, parsed_msg);
     }
     else if (!strcmp(command, VER_STR)){
-        buildVer(raw_msg, parsed_msg);
+        buildVer(raw_msg, parsed_msg, seq);
+        pushMessage(msgStream, parsed_msg);
     }
     else if (!strcmp(command, LINHA_STR)){
-        if (rep == 1) buildLinha(raw_msg, parsed_msg);
-        else if (rep == 2) buildValorLinha(raw_msg, parsed_msg);
+        buildLinha(raw_msg, parsed_msg, seq);
+        pushMessage(msgStream, parsed_msg);
+        seq = nextSeq(seq);
+        buildValorLinha(raw_msg, parsed_msg, seq);
+        pushMessage(msgStream, parsed_msg);
     }
     else if (!strcmp(command, LINHAS_STR)){
-        if (rep == 1) buildLinhas(raw_msg, parsed_msg);
-        else if (rep == 2) buildValorLinhas(raw_msg, parsed_msg);
+        buildLinhas(raw_msg, parsed_msg, seq);
+        pushMessage(msgStream, parsed_msg);
+        seq = nextSeq(seq);
+        buildValorLinhas(raw_msg, parsed_msg, seq);
+        pushMessage(msgStream, parsed_msg);
     }
     else 
         return 1;
         
-    parity = calcParity(parsed_msg);
-    setParity(parsed_msg, parity);
     return 0;
 }
 
@@ -374,7 +432,7 @@ void notifyRecieve(unsigned char *msg){
 
 int pushMessage( msg_stream_t *s, unsigned char *msg){
     if (s->size < MAX_STREAM_LEN)
-        strncpy(s->stream[ (s->size)++ ], msg, MAX_MSG_SIZE);
+        memcpy(s->stream[ (s->size)++ ], msg, MAX_MSG_SIZE);
     else
         return 1;
     return 0;

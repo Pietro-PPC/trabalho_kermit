@@ -16,29 +16,6 @@
 
 #define DEVICE "lo"
 
-void respondLs(int sock, struct sockaddr_ll *sockad, unsigned char *seq){
-    DIR *working_dir;
-    struct dirent *cur_file;
-    struct sockaddr_ll packet_info;
-    unsigned char msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE], buf[MAX_MSG_SIZE];
-
-    working_dir = opendir("./");
-    if (working_dir){
-        while(cur_file = readdir(working_dir)){
-            if (!strcmp(cur_file->d_name, ".") || !strcmp(cur_file->d_name, ".."))
-                continue;
-            *seq = nextSeq(*seq);
-            buildLsFile(msg, cur_file->d_name, *seq);
-            sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-        }
-        // Ordenar se der tempo
-        closedir(working_dir);
-    }// TODO: Criar else
-    *seq = nextSeq(*seq);
-    buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, *seq);
-    sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-}
-
 void getChars(FILE *f, int charNum, unsigned char *buf){
     int i = 0;
     while( i < charNum && !feof(f)){
@@ -85,114 +62,82 @@ int iterateLineNum(FILE *f, int lineNum){
     return 0;
 }
 
-void respondVer(int sock, struct sockaddr_ll *sockad, unsigned char *seq, unsigned char *filename){
-    unsigned char buf[MAX_DATA_SIZE+1], msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
+/*
+    Retornos: 
+        0. Transmissão finalizou
+        1. Transmissão não finalizou
+*/
+int buildFileMessages(msg_stream_t *msgStream, DIR *working_dir, int seq){
+    struct dirent *cur_file;
+    unsigned char msg[MAX_MSG_SIZE];
 
-    FILE *f = fopen(filename, "r");
-    if (!f){
-        buildError(msg, 1, *seq); // TODO: parsear o erro dentro da funcao
-        sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-        return;
-    }
-
-    while (!feof(f)){
-        getChars(f, MAX_DATA_SIZE, buf);
-        *seq = nextSeq(*seq);
-        buildFileContent(msg, buf, *seq);
-        sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-    }
-    *seq = nextSeq(*seq);
-    buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, *seq);
-    sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-
-    fclose(f);
-}
-
-void respondLinha(int sock, struct sockaddr_ll *sockad, unsigned char *seq, unsigned char *filename){
-    unsigned char buf[MAX_DATA_SIZE+1], msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
-    int fimMensagem, lineNum;
-    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
-    
-    FILE *f = fopen(filename, "r");
-    if (!f){
-        buildError(msg, FILE_ER, *seq); // TODO: parsear o erro dentro da funcao
-        sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
-        *seq = (*seq+1) % MAX_SEQ; // Isso deveria ser eliminado da face da terra mas deixa assim por enquanto
-        return;
-    }
-    buildAck(msg, SERVER_ADD, CLIENT_ADD, *seq);
-    sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-    *seq = nextSeq(*seq); // acho q era pra ser sendmessage so
-
-    getNextMessage(sock, msg, SERVER_ADD, *seq, 0);
-    if (iterateLineNum(f, getFirstLineNum(msg))){
-        buildError(msg, LINE_ER, *seq);
-        sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
-        return;
-    }
-
-    fimMensagem = 0;
-    while (!fimMensagem){
-        fimMensagem = getCharsLine(f, MAX_DATA_SIZE, buf);
-        if (fimMensagem && !feof(f)) buf[strlen(buf)-1] = 0;
-        buildFileContent(msg, buf, *seq);
-        sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-        *seq = (*seq+1) % MAX_SEQ;
-    }
-    buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, *seq);
-    sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-
-    fclose(f);
-}
-
-void respondLinhas(int sock, struct sockaddr_ll *sockad, unsigned char *seq, unsigned char *filename){
-    unsigned char buf[MAX_DATA_SIZE+1], msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
-    int fimMensagem, cur_line, first_line, last_line;
-    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
-    
-    // Testa se arquivo existe
-    FILE *f = fopen(filename, "r");
-    if (!f){
-        buildError(msg, FILE_ER, *seq); // TODO: parsear o erro dentro da funcao
-        sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
-        *seq = nextSeq(*seq); // Isso deveria ser eliminado da face da terra mas deixa assim por enquanto
-        return;
-    }
-    // Confirma que arquivo existe
-    buildAck(msg, SERVER_ADD, CLIENT_ADD, *seq);
-    sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-    *seq = nextSeq(*seq);
-
-    // Recebe linhas e testa se existem
-    getNextMessage(sock, msg, SERVER_ADD, *seq, 1);
-    first_line = getFirstLineNum(msg);
-    last_line = getLastLineNum(msg);
-    if (iterateLineNum(f, last_line)){
-        buildError(msg, LINE_ER, *seq);
-        sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
-        return;
-    }
-    rewind(f);
-    iterateLineNum(f,first_line);
-
-    // Devolve linhas
-    cur_line = first_line;
-    while(cur_line <= last_line){
-        if (getCharsLine(f, MAX_DATA_SIZE, buf)){ // Chegou em final de linha
-            if (cur_line == last_line && !feof(f))
-                buf[strlen(buf)-1] = 0;
-            cur_line++;
+    resetMsgStream(msgStream);
+    cur_file = readdir(working_dir);
+    while(cur_file && msgStream->size < MAX_STREAM_LEN-1){
+        if (strcmp(cur_file->d_name, ".") && strcmp(cur_file->d_name, "..")){
+            seq = nextSeq(seq);
+            buildLsFile(msg, cur_file->d_name, seq);
+            pushMessage(msgStream, msg);
         }
-        
-        buildFileContent(msg, buf, *seq);
-        sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-        *seq = (*seq+1) % MAX_SEQ;
+        cur_file = readdir(working_dir);
     }
-    buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, *seq);
-    sendMessageInsist(sock, msg, sockad, response, SERVER_ADD, *seq);
-
-    fclose(f);
+    seq = nextSeq(seq);
+    if (cur_file){
+        buildLsFile(msg, cur_file->d_name, seq);
+        pushMessage(msgStream, msg);
+        return 1;
+    }
+    buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, seq);
+    pushMessage(msgStream, msg);
+    return 0;
 }
+
+/*
+    Retornos: 
+        0. Transmissão finalizou
+        1. Transmissão não finalizada
+*/
+int buildVerMessages(msg_stream_t *msgStream, FILE *f, int seq){
+    unsigned char buf[MAX_DATA_SIZE+1], msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
+    resetMsgStream(msgStream);
+    while (!feof(f) && msgStream->size < MAX_STREAM_LEN-1){
+        getChars(f, MAX_DATA_SIZE, buf);
+        seq = nextSeq(seq);
+        buildFileContent(msg, buf, seq);
+        pushMessage(msgStream, msg);
+    }
+    if (!feof(f)) return 1;
+
+    seq = nextSeq(seq);
+    buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, seq);
+    pushMessage(msgStream, msg);
+    return 0;
+}
+
+int buildLinhasMessages(msg_stream_t *msgStream, FILE *f,int *cur_lin, int last_lin, int seq){
+    int lineEnds;
+    unsigned char buf[MAX_DATA_SIZE], msg[MAX_MSG_SIZE];
+
+    resetMsgStream(msgStream);
+    while(*cur_lin <= last_lin && msgStream->size < MAX_STREAM_LEN-1){
+        if (lineEnds = getCharsLine(f, MAX_DATA_SIZE, buf)){ // Chegou em final de linha
+            if (*cur_lin == last_lin && !feof(f))
+                buf[strlen(buf)-1] = 0;
+            (*cur_lin)++;
+        }
+        seq = nextSeq(seq);
+        buildFileContent(msg, buf, seq);
+        pushMessage(msgStream, msg);
+    }
+    if (!lineEnds || *cur_lin <= last_lin)
+        return 1;
+
+    seq = nextSeq(seq);
+    buildEndTransmission(msg, SERVER_ADD, CLIENT_ADD, seq);
+    pushMessage(msgStream, msg);
+    return 0;
+}
+
 
 int main(){
 
@@ -200,24 +145,26 @@ int main(){
     int sock = ConexaoRawSocket(DEVICE,&sockad);
     int len, ret;
     unsigned char buffer[BUF_SIZE], seq = 0;
-    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_MSG_SIZE];
-    char response[MAX_MSG_SIZE];
+    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
+    unsigned char response[MAX_MSG_SIZE];
+    msg_stream_t msgStream;
 
     printf("Server is on...\n");
     getNextMessage(sock, buffer, SERVER_ADD, prevSeq(seq), 1);
     for (;;){
-        // notifyRecieve(buffer);
+        if (LOG) notifyRecieve(buffer);
         ret = parseMsg(buffer, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
 
         // Resposta padrão é um ACK para o comando recebido
         buildAck(response, SERVER_ADD, CLIENT_ADD, seq);
-        if (ret == 2){
+        while (ret == 2){
             buildNack(response, SERVER_ADD, CLIENT_ADD, seq);
             sendMessage(sock, response, MAX_MSG_SIZE, &sockad);
+            getNextMessage(sock, buffer, SERVER_ADD, prevSeq(seq), 1);
+            ret = parseMsg(buffer, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
         }
-        else if (msg_type == CD_TYPE){ // A partir daqui, temos o código das mensagens
+        if (msg_type == CD_TYPE){ // A partir daqui, temos o código das mensagens
             int command_ret = executeCd(msg_data);
-            
             if (command_ret == 2 || command_ret == 20) // Diretório com esse nome não existe
                 buildError(response, DIR_ER, seq); 
             else if (command_ret == 13){ // Sem permissão para acessar diretório.
@@ -226,18 +173,63 @@ int main(){
             sendMessage(sock, response, MAX_MSG_SIZE, &sockad);
         }
         else if (msg_type == LS_TYPE){
-            respondLs(sock, &sockad, &seq);
+            // respondLs(sock, &sockad, &seq);
+            DIR *working_dir = opendir("./");
+            if (working_dir){
+                do {
+                    ret = buildFileMessages(&msgStream, working_dir, seq);
+                    sendMultipleMsgs(sock, &msgStream, SERVER_ADD, &seq);
+                } while (ret);
+                closedir(working_dir);
+            } else {
+                buildError(response, DIR_ER, seq);
+                sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+            }
         }
         else if (msg_type == VER_TYPE){
-            respondVer(sock, &sockad, &seq, msg_data);
+            FILE *f = fopen(msg_data, "r");
+            if (f){
+                do {
+                    ret = buildVerMessages(&msgStream, f, seq);
+                    sendMultipleMsgs(sock, &msgStream, SERVER_ADD, &seq);
+                } while (ret);
+                fclose(f);
+            } else {
+                buildError(response, FILE_ER, seq); // TODO: parsear o erro dentro da funcao
+                sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+            }
         }
-        else if (msg_type == LINHA_TYPE){
-            respondLinha(sock, &sockad, &seq, msg_data);
-            seq = (seq+1) % MAX_SEQ;
-        }
-        else if (msg_type == LINHAS_TYPE){
-            respondLinhas(sock, &sockad, &seq, msg_data);
-            seq = (seq+1) % MAX_SEQ;
+        else if (msg_type == LINHA_TYPE || msg_type == LINHAS_TYPE){
+            FILE *f = fopen(msg_data, "r");
+            int cur_lin, last_lin;
+            if (f){
+                // Manda ack para receber mensagem com linhas
+                buildAck(response, SERVER_ADD, CLIENT_ADD, seq);
+                sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+
+                // Recebe próxima mensagem e testa se linhas existem no arquivo
+                getMessageInsist(sock, buffer, CLIENT_ADD, SERVER_ADD, seq);
+                seq = nextSeq(seq);
+                cur_lin = getFirstLineNum(buffer);
+                last_lin = (msg_type == LINHA_TYPE) ? cur_lin : getLastLineNum(buffer);
+                if (!iterateLineNum(f, last_lin)){
+                    // Vai para linha inicial, constrói e manda mensagens
+                    rewind(f);
+                    iterateLineNum(f, cur_lin);
+                    do {
+                        ret = buildLinhasMessages(&msgStream, f, &cur_lin, last_lin, seq);
+                        sendMultipleMsgs(sock, &msgStream, SERVER_ADD, &seq);
+                    } while (ret);
+                } else { // Linha inexistente
+                    buildError(response, LINE_ER, seq);
+                    sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+                }
+                fclose(f);
+            } else {
+                // Arquivo inexistente
+                buildError(response, FILE_ER, seq);
+                sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+            } 
         }
         else {
             fprintf(stderr, "Command unavailable! %d\n", msg_type);

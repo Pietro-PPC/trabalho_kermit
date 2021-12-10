@@ -7,6 +7,7 @@
 #include "message.h"
 
 #define BUF_SIZE 2048
+#define LOG 0
 
 int sendMessage(int sock, char *msg, int msg_size, struct sockaddr_ll *sockad);
 
@@ -19,5 +20,7 @@ void sendMessageInsist(int sock, unsigned char *msg, struct sockaddr_ll *sockad,
 int getMultipleMsgss(int sock, msg_stream_t *s, unsigned char src, unsigned char dest, unsigned char *seq);
 
 int isANE(unsigned char *msg);
+
+void sendMultipleMsgs(int sock, msg_stream_t *msgStream, unsigned char myaddr, unsigned char *seq);
 
 #endif

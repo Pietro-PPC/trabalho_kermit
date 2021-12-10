@@ -121,24 +121,17 @@ int main(){
             break;
 
         sscanf(promptLine, "%s", command);
-        reps = 1;
-        if (!strcmp(command, LINHA_STR) || !strcmp(command, LINHAS_STR))
-            reps = 2;
 
-        err = 0;
-        msg_type = NEUTRAL_TYPE;
-
-        for (int i = 1; i <= reps && !err && msg_type != ERROR_TYPE; ++i){
-            if (err = buildMsgFromTxt(promptLine, msg, seq, i)){
-                fprintf(stderr, "Command not found!\n");
-            }
-            else {
-                sendMessageInsist(sock, msg, &sockad, response, CLIENT_ADD, seq);
-                if (i < reps) seq = (seq+1) % MAX_SEQ; 
-                ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
-            }
+        if (err = buildMsgsFromTxt(promptLine, &msgStream, seq)){
+            fprintf(stderr, "Command not found!\n");
+            continue;
         }
-        if (err) continue;
+        ret = 0;
+        for (int i = 0; i < msgStream.size && !ret; ++i){
+            sendMessageInsist(sock, msgStream.stream[i], &sockad, response, CLIENT_ADD, seq);
+            ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
+            if (i < msgStream.size-1) seq = nextSeq(seq); 
+        }
 
         if (msg_type == ACK_TYPE)
             printf("ACK!!!\n");
@@ -158,7 +151,7 @@ int main(){
         else if (msg_type == FILE_CONT_TYPE){
             lin_ini = 1;
             if (!strcmp(command, LINHA_STR) || !strcmp(command, LINHAS_STR))
-                lin_ini = getFirstLineNum(msg); // Última mensagem mandada tem numero da linha
+                lin_ini = getFirstLineNum(msgStream.stream[1]); // Última mensagem mandada tem numero da linha
             
             seq = nextSeq(seq);
             resetMsgStream(&msgStream);
@@ -198,7 +191,7 @@ int main(){
             sendMessage(sock, msg, MAX_MSG_SIZE, NULL);
         }
         else
-            fprintf(stderr, "Invalid message type\n");
+            fprintf(stderr, "Invalid message type %d\n", msg_type);
         seq = (seq+1) % MAX_SEQ;
     }
 

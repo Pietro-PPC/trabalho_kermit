@@ -10,7 +10,7 @@
 #include "message.h"
 
 int sendMessage(int sock, char *msg, int msg_size, struct sockaddr_ll *sockad){
-    // notifySend(msg);
+    if (LOG) notifySend(msg);
     int len = send(sock, msg, msg_size, 0);
     if (len < 0){
         fprintf(stderr, "Problem with sendto. Errno: %d\n", errno);
@@ -34,7 +34,7 @@ void sendMessageInsist(int sock, unsigned char *msg, struct sockaddr_ll *sockad,
     do { // Tenta enviar mensagem até conseguir
         if (!sendMessage(sock, msg, MAX_MSG_SIZE, sockad)){
             getNextMessage(sock, response, addr, seq, 0);
-            // printf("sendinsist "); notifyRecieve(response);
+            if (LOG) {printf("sendinsist "); notifyRecieve(response);}
             // Não sei se precisa mandar nack caso ret seja 2
             ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
             if (ret == 2) {
@@ -89,13 +89,10 @@ void getMessageInsist(int sock, unsigned char *msg, unsigned char src, unsigned 
     unsigned char response[MAX_MSG_SIZE];
     buildNack(response, dest, src, seq);
     while (getNextMessage(sock, msg, dest, seq, 1)){
-        printf("Recebi Corrompida\n");
-        // notifySend(response);
+        if (LOG) notifySend(response);
         sendMessage(sock, response, MAX_MSG_SIZE, NULL);
     }
-    // printf("getinsist ");notifyRecieve(msg);
-    buildAck(response, dest, src, nextSeq(seq));
-    sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+    if (LOG) {printf("getinsist ");notifyRecieve(msg);}
 }
 
 /*
@@ -105,9 +102,12 @@ void getMessageInsist(int sock, unsigned char *msg, unsigned char src, unsigned 
 */
 int getMultipleMsgss(int sock, msg_stream_t *s, unsigned char src, unsigned char dest, unsigned char *seq){
     int *i = &(s->size), ret = 0;
-    unsigned char type, buf[MAX_MSG_SIZE];
+    unsigned char type, buf[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
     do{
         getMessageInsist(sock, buf, src, dest, *seq);
+
+        buildAck(response, dest, src, nextSeq(*seq));
+        sendMessage(sock, response, MAX_MSG_SIZE, NULL);
         pushMessage(s, buf);
         *seq = nextSeq(*seq);
         type = getMsgType(buf);
@@ -118,4 +118,12 @@ int getMultipleMsgss(int sock, msg_stream_t *s, unsigned char src, unsigned char
     else 
         ret = 1;
     return ret;
+}
+
+void sendMultipleMsgs(int sock, msg_stream_t *msgStream, unsigned char myaddr, unsigned char *seq){
+    unsigned char response[MAX_MSG_SIZE];
+    for (int i = 0; i < msgStream->size; i++){
+        *seq = nextSeq(*seq);
+        sendMessageInsist(sock, msgStream->stream[i], NULL, response, myaddr, *seq);
+    }
 }
