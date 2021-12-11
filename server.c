@@ -49,16 +49,16 @@ int getCharsLine(FILE *f, int charNum, unsigned char *buf){
         . 0: linha existe
         . 1: Linha não existe
 */
-int iterateLineNum(FILE *f, int lineNum){
+int iterateLineNum(FILE *f, int lineNum, int tolerance){
     int i = 1;
     char c;
     while (i < lineNum && !feof(f)){
         do{
             c = fgetc(f);
         } while (c != '\n' && !feof(f));
-        ++i;
+        if (!feof(f)) ++i;
     }
-    if (feof(f)) return 1;
+    if (i+tolerance < lineNum) return 1;
     return 0;
 }
 
@@ -103,7 +103,7 @@ int buildVerMessages(msg_stream_t *msgStream, FILE *f, int seq){
     while (!feof(f) && msgStream->size < MAX_STREAM_LEN-1){
         getChars(f, MAX_DATA_SIZE, buf);
         seq = nextSeq(seq);
-        buildFileContent(msg, buf, seq);
+        buildFileContent(msg, buf, SERVER_ADD, CLIENT_ADD, seq);
         pushMessage(msgStream, msg);
     }
     if (!feof(f)) return 1;
@@ -126,7 +126,7 @@ int buildLinhasMessages(msg_stream_t *msgStream, FILE *f,int *cur_lin, int last_
             (*cur_lin)++;
         }
         seq = nextSeq(seq);
-        buildFileContent(msg, buf, seq);
+        buildFileContent(msg, buf, SERVER_ADD, CLIENT_ADD, seq);
         pushMessage(msgStream, msg);
     }
     if (!lineEnds || *cur_lin <= last_lin)
@@ -138,6 +138,52 @@ int buildLinhasMessages(msg_stream_t *msgStream, FILE *f,int *cur_lin, int last_
     return 0;
 }
 
+/*
+    Retornos
+        0: Linha editada com sucesso
+        1: Problema ao editar linha
+*/
+int editLine(FILE *f, msg_stream_t *msgStream, int line, unsigned char *fileName){
+    FILE *faux = fopen("aux.tmp", "w");
+    unsigned char c, data[MAX_DATA_SIZE+1];
+    int lin = 1;
+    if (!faux){
+        fprintf(stderr, "An unexpected error ocurred!\n");
+        return 1;
+    }
+
+    // Replica todas as linhas até line no arquivo auxiliar
+    while (lin < line && !feof(f)){
+        c = fgetc(f);
+        while(c != '\n' && !feof(f)){
+            putc(c, faux);
+            c = fgetc(f);
+        }
+        lin++;
+        putc('\n', faux);
+    }
+
+    // Imprime novo conteudo no arquivo auxiliar
+    for (int i = 0; i < msgStream->size; ++i){
+        getMsgData(msgStream->stream[i], data);
+        fprintf(faux, "%s", data);
+    }
+    // Ignora linha do arquivo original
+    do { c = fgetc(f); } while(c != '\n' && !feof(f));
+    if (!feof(f)) putc('\n', faux);
+    
+    // Imprime resto do conteudo no arquivo auxiliar
+    c = fgetc(f);
+    while (!feof(f)){
+        putc(c, faux);
+        c = fgetc(f);
+    }
+
+    fclose(faux);
+    remove(fileName);
+    rename("aux.tmp", fileName);
+    return 0;
+}
 
 int main(){
 
@@ -212,10 +258,10 @@ int main(){
                 seq = nextSeq(seq);
                 cur_lin = getFirstLineNum(buffer);
                 last_lin = (msg_type == LINHA_TYPE) ? cur_lin : getLastLineNum(buffer);
-                if (!iterateLineNum(f, last_lin)){
+                if (!iterateLineNum(f, last_lin, 0)){
                     // Vai para linha inicial, constrói e manda mensagens
                     rewind(f);
-                    iterateLineNum(f, cur_lin);
+                    iterateLineNum(f, cur_lin, 0);
                     do {
                         ret = buildLinhasMessages(&msgStream, f, &cur_lin, last_lin, seq);
                         sendMultipleMsgs(sock, &msgStream, SERVER_ADD, &seq);
@@ -230,6 +276,37 @@ int main(){
                 buildError(response, FILE_ER, seq);
                 sendMessage(sock, response, MAX_MSG_SIZE, NULL);
             } 
+        } else if (msg_type == EDIT_TYPE) {
+            int cur_lin;
+            FILE *f = fopen(msg_data, "r+");
+            if (f){
+                // Manda ack para receber mensagem com linhas
+                buildAck(response, SERVER_ADD, CLIENT_ADD, seq);
+                sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+
+                // Recebe próxima mensagem e testa se linhas existem no arquivo
+                getMessageInsist(sock, buffer, CLIENT_ADD, SERVER_ADD, seq);
+                seq = nextSeq(seq);
+                cur_lin = getFirstLineNum(buffer);
+                
+                if (!iterateLineNum(f, cur_lin, 1)){
+                    buildAck(response, SERVER_ADD, CLIENT_ADD, seq);
+                    sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+
+                    rewind(f);
+                    resetMsgStream(&msgStream);
+                    getMultipleMsgss(sock, &msgStream, CLIENT_ADD, SERVER_ADD, &seq);
+                    editLine(f, &msgStream, cur_lin, msg_data);
+                } else {
+                    buildError(response, LINE_ER, seq);
+                    sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+                }
+                fclose(f);
+            } else {
+                // Arquivo inexistente
+                buildError(response, FILE_ER, seq);
+                sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+            }
         }
         else {
             fprintf(stderr, "Command unavailable! %d\n", msg_type);

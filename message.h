@@ -7,7 +7,7 @@
 #define MAX_DATA_SIZE 15
 #define MAX_SEQ 16
 #define MAX_INT_LEN 10
-#define MAX_STREAM_LEN 10
+#define MAX_STREAM_LEN 30
 
 #define START_MARKER 0x7E
 #define SERVER_ADD 2
@@ -18,6 +18,7 @@
 #define VER_STR "ver"
 #define LINHA_STR "linha"
 #define LINHAS_STR "linhas"
+#define EDIT_STR "edit"
 
 #define CD_TYPE 0x00
 #define LS_TYPE 0x01
@@ -66,7 +67,7 @@ void buildError(unsigned char *parsed_msg, unsigned char error, unsigned char se
 
 void buildLsFile(unsigned char *parsed_msg, unsigned char *name, unsigned char seq);
 
-void buildFileContent(unsigned char *parsed_msg, unsigned char *content, unsigned char seq);
+void buildFileContent(unsigned char *parsed_msg, unsigned char *content, unsigned char src, unsigned char dst, unsigned char seq);
 
 void buildEndTransmission(unsigned char *parsed_msg, unsigned char src, unsigned char dst, unsigned char seq);
 

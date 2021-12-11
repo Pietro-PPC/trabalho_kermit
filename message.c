@@ -14,6 +14,14 @@ void resetMsgStream(msg_stream_t *s){
     s->size = 0;
 }
 
+int pushMessage( msg_stream_t *s, unsigned char *msg){
+    if (s->size < MAX_STREAM_LEN)
+        memcpy(s->stream[ (s->size)++ ], msg, MAX_MSG_SIZE);
+    else
+        return 1;
+    return 0;
+}
+
 /***********
   FUNÇÕES ÚTEIS
 ***********/
@@ -154,12 +162,12 @@ void buildLsFile(unsigned char *parsed_msg, unsigned char *name, unsigned char s
 }
 
 
-void buildFileContent(unsigned char *parsed_msg, unsigned char *content, unsigned char seq){
+void buildFileContent(unsigned char *parsed_msg, unsigned char *content, unsigned char src, unsigned char dst, unsigned char seq){
     unsigned char size = (unsigned char) min(strlen(content), MAX_DATA_SIZE); // questão de segurança
     unsigned char parity;
 
     initializeMsg(parsed_msg);
-    setSrcDst(parsed_msg, SERVER_ADD, CLIENT_ADD);
+    setSrcDst(parsed_msg, src, dst);
     setSize(parsed_msg, size);
     setSeq(parsed_msg, seq);
     setType(parsed_msg, FILE_CONT_TYPE);
@@ -254,7 +262,7 @@ void buildLinha(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char
 
 }
 
-void buildValorLinha(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq){
+void buildValorLinha(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned char seq, unsigned char *command){
     unsigned char lineNumBuf[MAX_BUF_LEN], lineNum[MAX_DATA_SIZE/2];
     int i;
     
@@ -262,7 +270,7 @@ void buildValorLinha(unsigned char *raw_msg, unsigned char *parsed_msg, unsigned
     setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
     setSeq(parsed_msg, seq);
 
-    sscanf(raw_msg + strlen(LINHA_STR)+1, "%s", lineNumBuf);
+    sscanf(raw_msg + strlen(command)+1, "%s", lineNumBuf);
     i = atoi(lineNumBuf);
     memcpy(lineNum, &i, sizeof(int));
 
@@ -320,14 +328,51 @@ void buildValorLinhas(unsigned char *raw_msg, unsigned char *parsed_msg, unsigne
     setParity(parsed_msg, parity);
 }
 
+void buildEdit(unsigned char *raw_msg, unsigned char *parsed_msg, int seq){
+    unsigned char lineNumBuf[MAX_INT_LEN+1], file[MAX_DATA_SIZE+1];
+    unsigned char msg_size;
+    
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+    setSeq(parsed_msg, seq);
+
+    sscanf(raw_msg + strlen(EDIT_STR)+1, "%s %s", lineNumBuf, file);
+    msg_size = (unsigned char) min(strlen(file), MAX_DATA_SIZE);
+    setSize(parsed_msg, msg_size);
+
+    setType(parsed_msg, EDIT_TYPE);
+    setData(parsed_msg, file);
+
+    unsigned char parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+}
+
+unsigned char *getTextStart(unsigned char *raw_msg){
+    unsigned char *c = raw_msg;
+
+    while (*c != '\"' && *c) 
+        *(c++);
+    if (!(*c)) return NULL;
+    return ++c;
+}
+
+void getNextBlock(unsigned char **textPtr, unsigned char *buf, int maxSize){
+    int i;
+    for (i = 0; i < maxSize && **textPtr && **textPtr != '\"'; ++i){
+        buf[i] = *((*textPtr)++);
+    }
+    buf[i] = 0;
+}
+
 /*
   Retornos: 
     . 0 - Mensagem construída com sucesso
     . 1 - Fracasso ao construir mensagem
 */
 int buildMsgsFromTxt(unsigned char *raw_msg, msg_stream_t *msgStream, unsigned char seq){
-    unsigned char command[MAX_BUF_LEN], parsed_msg[MAX_MSG_SIZE];
+    unsigned char command[MAX_BUF_LEN], parsed_msg[MAX_MSG_SIZE], buf[MAX_DATA_SIZE+1];
     unsigned char parity;
+    unsigned char *textPtr;
 
     sscanf(raw_msg, "%s", command);
     resetMsgStream(msgStream);
@@ -348,7 +393,7 @@ int buildMsgsFromTxt(unsigned char *raw_msg, msg_stream_t *msgStream, unsigned c
         buildLinha(raw_msg, parsed_msg, seq);
         pushMessage(msgStream, parsed_msg);
         seq = nextSeq(seq);
-        buildValorLinha(raw_msg, parsed_msg, seq);
+        buildValorLinha(raw_msg, parsed_msg, seq, LINHA_STR);
         pushMessage(msgStream, parsed_msg);
     }
     else if (!strcmp(command, LINHAS_STR)){
@@ -356,6 +401,25 @@ int buildMsgsFromTxt(unsigned char *raw_msg, msg_stream_t *msgStream, unsigned c
         pushMessage(msgStream, parsed_msg);
         seq = nextSeq(seq);
         buildValorLinhas(raw_msg, parsed_msg, seq);
+        pushMessage(msgStream, parsed_msg);
+    }
+    else if (!strcmp(command, EDIT_STR)){
+        buildEdit(raw_msg, parsed_msg, seq);
+        pushMessage(msgStream, parsed_msg);
+        seq = nextSeq(seq);
+        buildValorLinha(raw_msg, parsed_msg, seq, EDIT_STR);
+        pushMessage(msgStream, parsed_msg);
+        
+        if (!(textPtr = getTextStart(raw_msg)))
+            return 1;
+        seq = nextSeq(seq);
+        while (*textPtr != '\"' && *textPtr != 0){ // Mensagem não deve ser muito longa
+            getNextBlock(&textPtr, buf, MAX_DATA_SIZE);
+            buildFileContent(parsed_msg, buf, CLIENT_ADD, SERVER_ADD, seq);
+            seq = nextSeq(seq);
+            pushMessage(msgStream, parsed_msg);
+        }
+        buildEndTransmission(parsed_msg, CLIENT_ADD, SERVER_ADD, seq);
         pushMessage(msgStream, parsed_msg);
     }
     else 
@@ -428,14 +492,6 @@ void notifySend(unsigned char *msg){
 
 void notifyRecieve(unsigned char *msg){
     printf("Recebi %x | %d\n", getMsgType(msg), getMsgSeq(msg)); fflush(stdin);
-}
-
-int pushMessage( msg_stream_t *s, unsigned char *msg){
-    if (s->size < MAX_STREAM_LEN)
-        memcpy(s->stream[ (s->size)++ ], msg, MAX_MSG_SIZE);
-    else
-        return 1;
-    return 0;
 }
 
 int rmLastMessage(msg_stream_t *s){

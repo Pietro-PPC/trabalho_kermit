@@ -40,10 +40,6 @@ void getPromptLine (char *promptLine){
     } while(!strlen(promptLine));
 }
 
-void printDirectory(unsigned char *msg_data){
-    printf("%s\n", msg_data);
-}
-
 void printFileContent(unsigned char *msg_data, int *line){
     char *c = msg_data;
     while (*c){
@@ -52,39 +48,6 @@ void printFileContent(unsigned char *msg_data, int *line){
             printf("%3d ", ++(*line));
         c++;
     }
-}
-
-// falta especificar a linha que vai começar
-void getMultipleMsgs(int sock, unsigned char *response, unsigned char *seq, struct sockaddr_ll *sockad, int type, int line){
-    // Recebe todo conteúdo do ls e depois um fim_transmissão (Vamos assumir que sim)
-    int ret;
-    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+2];
-    unsigned char msg[MAX_MSG_SIZE];
-
-    if (type == FILE_CONT_TYPE)
-        printf("%3d ", line);
-
-    ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
-    while(msg_type == type){
-        if (ret == 2)
-            buildNack(msg, CLIENT_ADD, SERVER_ADD, *seq);
-        else{
-            if (type == LS_CONT_TYPE)
-                printDirectory(msg_data);
-            else if (type == FILE_CONT_TYPE)
-                printFileContent(msg_data, &line);
-            
-            buildAck(msg, CLIENT_ADD, SERVER_ADD, *seq);
-            *seq = (*seq+1) % MAX_SEQ;
-        }
-        sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
-
-        getNextMessage(sock, response, CLIENT_ADD, *seq, 0);
-        ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
-        if (ret == 2) msg_type = type; // Evitar que saia do loop com mensagem corrompida
-    } 
-    buildAck(msg, CLIENT_ADD, SERVER_ADD, *seq);
-    sendMessage(sock, msg, MAX_MSG_SIZE, sockad);
 }
 
 void printLines(msg_stream_t *msgStream, int* cur_lin){
@@ -97,12 +60,12 @@ void printLines(msg_stream_t *msgStream, int* cur_lin){
 
 int printFiles(msg_stream_t *msgStream){
     unsigned char data[MAX_MSG_SIZE+1];
+    printf("stream size: %d\n", msgStream->size);
     for (int i = 0; i < msgStream->size; ++i){
         getMsgData(msgStream->stream[i], data);
         printf("%s\n", data);
     }
 }
-
 
 int main(){
     struct sockaddr_ll sockad, packet_info; 
@@ -110,7 +73,7 @@ int main(){
 
     char promptLine[MAX_BUF] = "", command[MAX_BUF];
     unsigned char msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE], seq;
-    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
+    unsigned char msg_dst, msg_size, msg_sequence, msg_type = NEUTRAL_TYPE, msg_parity, msg_data[MAX_DATA_SIZE+1];
     int ret, reps, err, lin_ini;
     msg_stream_t msgStream;
     resetMsgStream(&msgStream);
@@ -121,22 +84,22 @@ int main(){
             break;
 
         sscanf(promptLine, "%s", command);
-
         if (err = buildMsgsFromTxt(promptLine, &msgStream, seq)){
-            fprintf(stderr, "Command not found!\n");
+            fprintf(stderr, "Error with command!\n");
             continue;
         }
         ret = 0;
-        for (int i = 0; i < msgStream.size && !ret; ++i){
+        msg_type = NEUTRAL_TYPE;
+        for (int i = 0; i < msgStream.size && !ret && msg_type != ERROR_TYPE; ++i){
             sendMessageInsist(sock, msgStream.stream[i], &sockad, response, CLIENT_ADD, seq);
             ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
-            if (i < msgStream.size-1) seq = nextSeq(seq); 
+            seq = nextSeq(seq); 
         }
+        seq = prevSeq(seq);
 
         if (msg_type == ACK_TYPE)
             printf("ACK!!!\n");
         else if (msg_type == LS_CONT_TYPE){
-            // getMultipleMsgs(sock, response, &seq, &sockad, LS_CONT_TYPE, 0);
             seq = nextSeq(seq);
             resetMsgStream(&msgStream);
             pushMessage(&msgStream, response);
