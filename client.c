@@ -40,27 +40,26 @@ void getPromptLine (char *promptLine){
     } while(!strlen(promptLine));
 }
 
-void printFileContent(unsigned char *msg_data, int *line){
+void printFileContent(unsigned char *msg_data, int *line, int withLineNum){
     char *c = msg_data;
     while (*c){
         putchar(*c);
-        if (*c == '\n')
+        if (*c == '\n' && withLineNum)
             printf("%3d ", ++(*line));
         c++;
     }
 }
 
-void printLines(msg_stream_t *msgStream, int* cur_lin){
+void printLines(msg_stream_t *msgStream, int* cur_lin, int withLineNum){
     unsigned char data[MAX_MSG_SIZE+1];
     for (int i = 0; i < msgStream->size; ++i){
         getMsgData(msgStream->stream[i], data);
-        printFileContent(data, cur_lin);
+        printFileContent(data, cur_lin, withLineNum);
     }
 }
 
 int printFiles(msg_stream_t *msgStream){
     unsigned char data[MAX_MSG_SIZE+1];
-    printf("stream size: %d\n", msgStream->size);
     for (int i = 0; i < msgStream->size; ++i){
         getMsgData(msgStream->stream[i], data);
         printf("%s\n", data);
@@ -73,7 +72,7 @@ int main(){
 
     char promptLine[MAX_BUF] = "", command[MAX_BUF];
     unsigned char msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE], seq;
-    unsigned char msg_dst, msg_size, msg_sequence, msg_type = NEUTRAL_TYPE, msg_parity, msg_data[MAX_DATA_SIZE+1];
+    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
     int ret, reps, err, lin_ini;
     msg_stream_t msgStream;
     resetMsgStream(&msgStream);
@@ -97,8 +96,14 @@ int main(){
         }
         seq = prevSeq(seq);
 
-        if (msg_type == ACK_TYPE)
+        if (!strcmp(command, COMPILAR_STR)){
+            getMessageInsist(sock, response, SERVER_ADD, CLIENT_ADD, seq);
+            ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
+        }
+
+        if (msg_type == ACK_TYPE) {
             printf("ACK!!!\n");
+        }
         else if (msg_type == LS_CONT_TYPE){
             seq = nextSeq(seq);
             resetMsgStream(&msgStream);
@@ -111,7 +116,8 @@ int main(){
                 resetMsgStream(&msgStream);
             } while (ret);
         }
-        else if (msg_type == FILE_CONT_TYPE){
+        else if (msg_type == FILE_CONT_TYPE ){
+            int withLineNum = strcmp(command, COMPILAR_STR) ? 1 : 0;
             lin_ini = 1;
             if (!strcmp(command, LINHA_STR) || !strcmp(command, LINHAS_STR))
                 lin_ini = getFirstLineNum(msgStream.stream[1]); // Última mensagem mandada tem numero da linha
@@ -122,10 +128,10 @@ int main(){
             buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
             sendMessage(sock, msg, MAX_MSG_SIZE, NULL);
 
-            printf("%3d ", lin_ini);
+            if (withLineNum) printf("%3d ", lin_ini);
             do {
                 ret = getMultipleMsgss(sock, &msgStream, SERVER_ADD, CLIENT_ADD, &seq);
-                printLines(&msgStream, &lin_ini);
+                printLines(&msgStream, &lin_ini, withLineNum);
                 resetMsgStream(&msgStream);
             } while(ret);
             printf("\n");

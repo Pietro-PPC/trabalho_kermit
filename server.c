@@ -97,7 +97,7 @@ int buildFileMessages(msg_stream_t *msgStream, DIR *working_dir, int seq){
         0. Transmissão finalizou
         1. Transmissão não finalizada
 */
-int buildVerMessages(msg_stream_t *msgStream, FILE *f, int seq){
+int buildMsgsFromFile(msg_stream_t *msgStream, FILE *f, int seq){
     unsigned char buf[MAX_DATA_SIZE+1], msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
     resetMsgStream(msgStream);
     while (!feof(f) && msgStream->size < MAX_STREAM_LEN-1){
@@ -236,7 +236,7 @@ int main(){
             FILE *f = fopen(msg_data, "r");
             if (f){
                 do {
-                    ret = buildVerMessages(&msgStream, f, seq);
+                    ret = buildMsgsFromFile(&msgStream, f, seq);
                     sendMultipleMsgs(sock, &msgStream, SERVER_ADD, &seq);
                 } while (ret);
                 fclose(f);
@@ -304,6 +304,46 @@ int main(){
                 fclose(f);
             } else {
                 // Arquivo inexistente
+                buildError(response, FILE_ER, seq);
+                sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+            }
+        } else if (msg_type == COMPILAR_TYPE){
+            FILE *f = fopen(msg_data, "r"), *compileRet;
+            unsigned char command[MAX_BUF_LEN], dataBuf[MAX_DATA_SIZE+1];
+            unsigned char *strPtr, *gccStr = "gcc ";
+
+            if (f){
+                fclose(f);
+                buildAck(response, SERVER_ADD, CLIENT_ADD, seq);
+                sendMessage(sock, response, MAX_MSG_SIZE, NULL);
+                
+                resetMsgStream(&msgStream);
+                getMultipleMsgss(sock, &msgStream, CLIENT_ADD, SERVER_ADD, &seq);
+                
+                strPtr = command;
+                strcpy(strPtr, gccStr);
+                strPtr += strlen(gccStr);
+                for (int i = 0; i < msgStream.size; ++i){
+                    getMsgData(msgStream.stream[i], dataBuf);
+                    strcpy(strPtr, dataBuf);
+                    strPtr += strlen(dataBuf);
+                }
+                *(strPtr++) = ' ';
+                strcpy(strPtr, msg_data);
+                strPtr += strlen(msg_data);
+                sprintf(strPtr, " 2>&1 | cat > retCompile.tmp");
+
+                // Compila e retorna valores.
+                compileRet = popen(command, "r");
+                pclose(compileRet);
+                f = fopen("retCompile.tmp", "r");
+                do {
+                    ret = buildMsgsFromFile(&msgStream, f, seq);
+                    sendMultipleMsgs(sock, &msgStream, SERVER_ADD, &seq);
+                } while(ret);
+                fclose(f);
+                remove("retCompile.tmp");
+            } else {
                 buildError(response, FILE_ER, seq);
                 sendMessage(sock, response, MAX_MSG_SIZE, NULL);
             }

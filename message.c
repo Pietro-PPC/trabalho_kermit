@@ -347,6 +347,39 @@ void buildEdit(unsigned char *raw_msg, unsigned char *parsed_msg, int seq){
     setParity(parsed_msg, parity);
 }
 
+
+void buildCompilar(unsigned char *raw_msg, unsigned char *parsed_msg, int seq, unsigned char *data){
+    unsigned char msg_size;
+
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+    setSeq(parsed_msg, seq);
+
+    msg_size = min(strlen(data), MAX_MSG_SIZE);
+    setSize(parsed_msg, msg_size);
+    setType(parsed_msg, COMPILAR_TYPE);
+    setData(parsed_msg, data);
+    
+    unsigned char parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+}
+
+void buildOption(unsigned char *parsed_msg, unsigned char* data, unsigned char seq){
+    unsigned char *filenamePtr, *c;
+    unsigned char *dest, *last;
+    
+    initializeMsg(parsed_msg);
+    setSrcDst(parsed_msg, CLIENT_ADD, SERVER_ADD);
+    setSeq(parsed_msg, seq);
+
+    setSize(parsed_msg, strlen(data));
+    setType(parsed_msg, OPTIONS_TYPE);
+    setData(parsed_msg, data);
+    
+    unsigned char parity = calcParity(parsed_msg);
+    setParity(parsed_msg, parity);
+}
+
 unsigned char *getTextStart(unsigned char *raw_msg){
     unsigned char *c = raw_msg;
 
@@ -356,6 +389,10 @@ unsigned char *getTextStart(unsigned char *raw_msg){
     return ++c;
 }
 
+/*
+    Copia próximo bloco de maxSize caracteres para buf.
+    Acrescenta um \0 no final.
+*/
 void getNextBlock(unsigned char **textPtr, unsigned char *buf, int maxSize){
     int i;
     for (i = 0; i < maxSize && **textPtr && **textPtr != '\"'; ++i){
@@ -416,8 +453,37 @@ int buildMsgsFromTxt(unsigned char *raw_msg, msg_stream_t *msgStream, unsigned c
         while (*textPtr != '\"' && *textPtr != 0){ // Mensagem não deve ser muito longa
             getNextBlock(&textPtr, buf, MAX_DATA_SIZE);
             buildFileContent(parsed_msg, buf, CLIENT_ADD, SERVER_ADD, seq);
-            seq = nextSeq(seq);
             pushMessage(msgStream, parsed_msg);
+            seq = nextSeq(seq);
+        }
+        buildEndTransmission(parsed_msg, CLIENT_ADD, SERVER_ADD, seq);
+        pushMessage(msgStream, parsed_msg);
+    } else if (!strcmp(command, COMPILAR_STR)){
+        unsigned char *aux, *last, *ptr, data[MAX_DATA_SIZE+1];
+        unsigned char auxBuf[MAX_BUF_LEN];
+
+        // Itera por palavras do comando até a última.
+        strcpy(auxBuf, raw_msg);
+        aux = strtok(auxBuf + strlen(COMPILAR_STR), " ");
+        last = aux;
+        while (aux) {
+            last = aux;
+            aux = strtok(NULL, " ");
+        }
+        if (!last) return 1;
+
+        // Constrói e adiciona mensagem de compilar
+        buildCompilar(raw_msg, parsed_msg, seq, last);
+        pushMessage(msgStream, parsed_msg);
+        seq = nextSeq(seq);
+        raw_msg[last - auxBuf] = 0;
+        ptr = raw_msg + strlen(COMPILAR_STR);
+        while(*ptr){
+            getNextBlock(&ptr, data, MAX_DATA_SIZE);
+            buildOption(parsed_msg, data, seq);
+            pushMessage(msgStream, parsed_msg);
+            getMsgData(parsed_msg, data);
+            seq = nextSeq(seq);
         }
         buildEndTransmission(parsed_msg, CLIENT_ADD, SERVER_ADD, seq);
         pushMessage(msgStream, parsed_msg);

@@ -19,6 +19,7 @@
 #define LINHA_STR "linha"
 #define LINHAS_STR "linhas"
 #define EDIT_STR "edit"
+#define COMPILAR_STR "compilar"
 
 #define CD_TYPE 0x00
 #define LS_TYPE 0x01
@@ -27,15 +28,18 @@
 #define LINHAS_TYPE 0x04
 #define EDIT_TYPE 0x05
 #define COMPILAR_TYPE 0x06
+
+#define NEUTRAL_TYPE 0x07
+
 #define ACK_TYPE 0x08
 #define NACK_TYPE 0x09
 #define LINE_LIMITS_TYPE 0x0A
 #define LS_CONT_TYPE 0x0B
 #define FILE_CONT_TYPE 0x0C
 #define END_TRANSM_TYPE 0x0D
+#define OPTIONS_TYPE 0x0E
 #define ERROR_TYPE 0x0F
 
-#define NEUTRAL_TYPE 0x0E
 
 #define PERM_ER 1
 #define DIR_ER 2

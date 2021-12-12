@@ -83,7 +83,7 @@ int getNextMessage(int sock, unsigned char *msg, unsigned char dest, unsigned ch
 }
 
 /*
-    Usada para receber algo e mandar um ack/nack de resposta
+    Usada para receber algo e mandar um nack até dar certo.
 */
 void getMessageInsist(int sock, unsigned char *msg, unsigned char src, unsigned char dest, unsigned char seq){
     unsigned char response[MAX_MSG_SIZE];
