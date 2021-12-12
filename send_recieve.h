@@ -7,7 +7,37 @@
 #include "message.h"
 
 #define BUF_SIZE 2048
-#define LOG 0
+#define LOG 1
+
+#define GET_INSIST_CODE 0
+#define SEND_INSIST_CODE 1
+#define SEND_MULTIPLE_CODE 2
+
+struct getInsistParams {
+    int sock;
+    unsigned char *msg;
+    unsigned char src;
+    unsigned char dest;
+    unsigned char seq;
+};
+
+struct sendInsistParams {
+    int sock;
+    unsigned char *msg;
+    struct sockaddr_ll *sockad;
+    unsigned char *response;
+    unsigned char addr;
+    unsigned char seq;
+};
+
+struct getMultipleParams {
+    int sock;
+    msg_stream_t *s;
+    unsigned char src;
+    unsigned char dest;
+    unsigned char *seq;
+    int *ret;
+};
 
 int sendMessage(int sock, char *msg, int msg_size, struct sockaddr_ll *sockad);
 
@@ -22,5 +52,13 @@ int getMultipleMsgss(int sock, msg_stream_t *s, unsigned char src, unsigned char
 int isANE(unsigned char *msg);
 
 void sendMultipleMsgs(int sock, msg_stream_t *msgStream, unsigned char myaddr, unsigned char *seq);
+
+void *sendMessageInsistTimeout(void *data);
+
+void *getMessageInsistTimeout(void *data);
+
+void *getMultipleMsgssTimeout(void *data);
+
+int executeOrTimeout(void *(*func_addr)(void *), void *data, struct timespec *max_wait);
 
 #endif

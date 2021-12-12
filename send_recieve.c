@@ -5,9 +5,13 @@
 #include <sys/socket.h>
 #include <net/ethernet.h>
 #include <linux/if_packet.h>
+#include <pthread.h>
 
 #include "send_recieve.h"
 #include "message.h"
+
+pthread_mutex_t calculating = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t done = PTHREAD_COND_INITIALIZER;
 
 int sendMessage(int sock, char *msg, int msg_size, struct sockaddr_ll *sockad){
     if (LOG) notifySend(msg);
@@ -46,6 +50,38 @@ void sendMessageInsist(int sock, unsigned char *msg, struct sockaddr_ll *sockad,
             msg_type = NACK_TYPE; // Parte obsoleta
         
     } while(msg_type == NACK_TYPE);
+}
+
+/*
+    Igual ao sendMessageInsist, mas detecta se houve timeout;
+*/
+void *sendMessageInsistTimeout(void *data){
+
+    struct sendInsistParams *params = data;
+    int ret;
+    unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_data[MAX_DATA_SIZE], msg_parity;
+    int oldtype;
+
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
+
+    do { // Tenta enviar mensagem até conseguir
+        if (!sendMessage(params->sock, params->msg, MAX_MSG_SIZE, NULL)){
+            getNextMessage(params->sock, params->response, params->addr, params->seq, 0);
+            if (LOG) {printf("sendinsist "); notifyRecieve(params->response);}
+            // Não sei se precisa mandar nack caso ret seja 2
+            ret = parseMsg(params->response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
+            if (ret == 2) {
+                fprintf(stderr, "Fatal error! Response message corrupted!\n");
+                exit(1);
+            }
+        } 
+        else
+            msg_type = NACK_TYPE; // Parte obsoleta
+        
+    } while(msg_type == NACK_TYPE);
+
+    pthread_cond_signal(&done);
+    return NULL;
 }
 
 /*
@@ -96,6 +132,28 @@ void getMessageInsist(int sock, unsigned char *msg, unsigned char src, unsigned 
 }
 
 /*
+    Usada para receber algo e mandar um nack até dar certo 
+    e detectar timeout. 
+*/
+void *getMessageInsistTimeout(void *data){
+    struct getInsistParams *params = data;
+    int oldtype;
+
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
+
+    unsigned char response[MAX_MSG_SIZE];
+    buildNack(response, params->dest, params->src, params->seq);
+    while (getNextMessage(params->sock, params->msg, params->dest, params->seq, 1)){
+        if (LOG) notifySend(response);
+        sendMessage(params->sock, response, MAX_MSG_SIZE, NULL);
+    }
+    if (LOG) {printf("getinsist ");notifyRecieve(params->msg);}
+
+    pthread_cond_signal(&done);
+    return NULL;
+}
+
+/*
     Retornos:
         0: Transmissão finalizada
         1: Transmissão não finalizada
@@ -120,10 +178,72 @@ int getMultipleMsgss(int sock, msg_stream_t *s, unsigned char src, unsigned char
     return ret;
 }
 
+void *getMultipleMsgssTimeout(void *data){
+    struct getMultipleParams *params = data;
+    int *i = &(params->s->size);
+    unsigned char type, buf[MAX_MSG_SIZE], response[MAX_MSG_SIZE];
+    int oldtype;
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
+
+    *(params->ret) = 0;
+    do{
+        getMessageInsist(params->sock, buf, params->src, params->dest, *(params->seq));
+
+        buildAck(response, params->dest, params->src, nextSeq(*(params->seq)));
+        sendMessage(params->sock, response, MAX_MSG_SIZE, NULL);
+        pushMessage(params->s, buf);
+        *(params->seq) = nextSeq(*(params->seq));
+        type = getMsgType(buf);
+
+    } while(type != END_TRANSM_TYPE && *i < MAX_STREAM_LEN);
+    if (type == END_TRANSM_TYPE) 
+        rmLastMessage(params->s);
+    else 
+        *(params->ret) = 1;
+    
+    pthread_cond_signal(&done);
+    return NULL;
+}
+
 void sendMultipleMsgs(int sock, msg_stream_t *msgStream, unsigned char myaddr, unsigned char *seq){
     unsigned char response[MAX_MSG_SIZE];
     for (int i = 0; i < msgStream->size; i++){
         *seq = nextSeq(*seq);
         sendMessageInsist(sock, msgStream->stream[i], NULL, response, myaddr, *seq);
     }
+}
+
+/*
+    Retornos:
+        . 0: t1 < t2
+        . Não 0: t1 >= t2
+*/
+int menorOp(struct timespec *t1, struct timespec *t2){
+    if (t1->tv_sec == t2->tv_sec)
+        return t1->tv_nsec < t2->tv_nsec;
+    return t1->tv_sec < t2->tv_sec;
+}
+
+
+int executeOrTimeout(void *(*func_addr)(void *), void *data, struct timespec *max_wait){
+    struct timespec max_time, cur_time;
+    pthread_t tid;
+    int err, ret;
+    
+    pthread_mutex_lock(&calculating);
+
+    clock_gettime(CLOCK_REALTIME, &cur_time);
+    clock_gettime(CLOCK_REALTIME, &max_time);
+    max_time.tv_sec += max_wait->tv_sec;
+    max_time.tv_nsec += max_wait->tv_nsec;
+
+    pthread_create(&tid, NULL, func_addr, data);
+
+    err = pthread_cond_timedwait(&done, &calculating, &max_time);
+
+    pthread_cond_signal(&done);
+
+    if (err) return -1;
+    pthread_mutex_unlock(&calculating);
+    return 0;
 }

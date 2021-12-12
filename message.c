@@ -545,6 +545,7 @@ void getMsgData(unsigned char *msg, unsigned char *data){
 int parseMsg(unsigned char *msg, unsigned char *msg_dst, unsigned char *msg_size, 
               unsigned char *msg_sequence, unsigned char *msg_type, unsigned char *msg_data,
               unsigned char *msg_parity){
+    // printBitwise(msg, MAX_MSG_SIZE);
     if (msg[0] != START_MARKER){
         return 1;
     }

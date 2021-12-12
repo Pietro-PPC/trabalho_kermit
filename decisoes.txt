@@ -12,3 +12,4 @@ para o próximo seq
 Se eu leio uma mensagem (não ANE), eu posso passar para o próximo seq
 
 Tirei a linha pra ver se dá tudo certo
+roi

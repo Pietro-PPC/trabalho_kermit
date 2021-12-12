@@ -85,15 +85,39 @@ int executeLls(){
 }
 
 int main(){
-    struct sockaddr_ll sockad, packet_info; 
+    struct sockaddr_ll sockad;
     int sock = ConexaoRawSocket(DEVICE, &sockad);
-
+    struct timespec max_wait;
     char promptLine[MAX_BUF] = "", command[MAX_BUF], buf[MAX_BUF];
     unsigned char msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE], seq;
     unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
-    int ret, reps, err, lin_ini;
+    int ret, reps, err, lin_ini, timeout = 0;
     msg_stream_t msgStream;
+
+    max_wait.tv_sec = 2;
+    max_wait.tv_nsec = 0;
     resetMsgStream(&msgStream);
+
+    // Parâmetros fixos de cada função de timeout
+    struct sendInsistParams siParams;
+    siParams.sock = sock;
+    siParams.sockad = NULL;
+    siParams.response = response;
+    siParams.addr = CLIENT_ADD;
+
+    struct getInsistParams giParams;
+    giParams.sock = sock;
+    giParams.src = SERVER_ADD;
+    giParams.dest = CLIENT_ADD;
+    giParams.msg = response;
+
+    struct getMultipleParams gmParams;
+    gmParams.sock = sock;
+    gmParams.src = SERVER_ADD;
+    gmParams.dest = CLIENT_ADD;
+    gmParams.seq = &seq;
+    gmParams.ret = &ret;
+    gmParams.s = &msgStream;
 
     for (;;){
         getPromptLine(promptLine);
@@ -105,7 +129,8 @@ int main(){
             ret = executeLls();
             if (ret) printError(DIR_ER);
             continue;
-        } else if (!strcmp(command, LCD_STR)){
+        }
+        if (!strcmp(command, LCD_STR)){
             sscanf(promptLine+strlen(LCD_STR), "%s", buf);
             ret = executeCd(buf);
             if (ret == 2 || ret == 20)
@@ -114,7 +139,6 @@ int main(){
                 printError(PERM_ER);
             continue;
         }
-
         if (err = buildMsgsFromTxt(promptLine, &msgStream, seq)){
             fprintf(stderr, "Error with command!\n");
             continue;
@@ -122,19 +146,26 @@ int main(){
         ret = 0;
         msg_type = NEUTRAL_TYPE;
         for (int i = 0; i < msgStream.size && !ret && msg_type != ERROR_TYPE; ++i){
-            sendMessageInsist(sock, msgStream.stream[i], &sockad, response, CLIENT_ADD, seq);
-            ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
+            siParams.msg = msgStream.stream[i];
+            siParams.seq = seq;
+            if (executeOrTimeout(&sendMessageInsistTimeout, &siParams, &max_wait) == -1){
+                fprintf(stderr, "Timeout\n"); return 1;
+            }
+            ret = parseMsg(siParams.response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
             seq = nextSeq(seq); 
         }
         seq = prevSeq(seq);
 
-        if (!strcmp(command, COMPILAR_STR)){
-            getMessageInsist(sock, response, SERVER_ADD, CLIENT_ADD, seq);
-            ret = parseMsg(response, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
+        if (!strcmp(command, COMPILAR_STR)){ // Pega retorno do gcc
+            giParams.seq = seq;
+            if (executeOrTimeout(&getMessageInsistTimeout, &giParams, &max_wait) == -1){
+                fprintf(stderr, "Timeout\n"); return 1;
+            }
+            ret = parseMsg(giParams.msg, &msg_dst, &msg_size, &msg_sequence, &msg_type, msg_data, &msg_parity);
         }
 
-        if (msg_type == ACK_TYPE) {
-            printf("ACK!!!\n");
+        if (msg_type == ACK_TYPE){
+            printf("Done\n");
         }
         else if (msg_type == LS_CONT_TYPE){
             seq = nextSeq(seq);
@@ -143,7 +174,9 @@ int main(){
             buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
             sendMessage(sock, msg, MAX_MSG_SIZE, NULL);
             do{
-                ret = getMultipleMsgss(sock, &msgStream, SERVER_ADD, CLIENT_ADD, &seq);
+                if (executeOrTimeout(&getMultipleMsgssTimeout, &gmParams, &max_wait)){
+                    fprintf(stderr, "Timeout"); return 1;
+                }
                 printFiles(&msgStream);
                 resetMsgStream(&msgStream);
             } while (ret);
@@ -155,14 +188,16 @@ int main(){
                 lin_ini = getFirstLineNum(msgStream.stream[1]); // Última mensagem mandada tem numero da linha
             
             seq = nextSeq(seq);
-            resetMsgStream(&msgStream);
+            resetMsgStream(&msgStream); 
             pushMessage(&msgStream, response);
             buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
             sendMessage(sock, msg, MAX_MSG_SIZE, NULL);
 
             if (withLineNum) printf("%3d ", lin_ini);
             do {
-                ret = getMultipleMsgss(sock, &msgStream, SERVER_ADD, CLIENT_ADD, &seq);
+                if (executeOrTimeout(&getMultipleMsgssTimeout, &gmParams, &max_wait)){
+                    fprintf(stderr, "Timeout"); return 1;
+                }
                 printLines(&msgStream, &lin_ini, withLineNum);
                 resetMsgStream(&msgStream);
             } while(ret);
@@ -176,9 +211,10 @@ int main(){
             buildAck(msg, CLIENT_ADD, SERVER_ADD, seq);
             sendMessage(sock, msg, MAX_MSG_SIZE, NULL);
         }
-        else
-            fprintf(stderr, "Invalid message type %d\n", msg_type);
-        seq = (seq+1) % MAX_SEQ;
+        else{
+            fprintf(stderr, "Invalid response from server\n");
+        }
+        seq = nextSeq(seq);
     }
 
     return 0;
