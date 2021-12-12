@@ -20,6 +20,8 @@
 #define LINHAS_STR "linhas"
 #define EDIT_STR "edit"
 #define COMPILAR_STR "compilar"
+#define LCD_STR "lcd"
+#define LLS_STR "lls"
 
 #define CD_TYPE 0x00
 #define LS_TYPE 0x01
@@ -50,6 +52,8 @@ typedef struct msg_stream_s {
     unsigned char stream[MAX_STREAM_LEN][MAX_MSG_SIZE];
     int size;
 } msg_stream_t;
+
+void printError(unsigned char err);
 
 void resetMsgStream(msg_stream_t *s);
 

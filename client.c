@@ -13,6 +13,7 @@ TODO:
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <dirent.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <net/ethernet.h>
@@ -66,11 +67,28 @@ int printFiles(msg_stream_t *msgStream){
     }
 }
 
+/*
+    Retornos:
+        0. Tudo certo
+        1. Erro ao abrir diretório
+*/
+int executeLls(){
+    DIR *working_dir = opendir("./");
+    struct dirent *cur_file;
+    if (working_dir){
+        while(cur_file = readdir(working_dir))
+            if (strcmp(cur_file->d_name, ".") && strcmp(cur_file->d_name, ".."))
+                printf("%s\n", cur_file->d_name);
+        return 0;
+    }
+    return 1;
+}
+
 int main(){
     struct sockaddr_ll sockad, packet_info; 
     int sock = ConexaoRawSocket(DEVICE, &sockad);
 
-    char promptLine[MAX_BUF] = "", command[MAX_BUF];
+    char promptLine[MAX_BUF] = "", command[MAX_BUF], buf[MAX_BUF];
     unsigned char msg[MAX_MSG_SIZE], response[MAX_MSG_SIZE], seq;
     unsigned char msg_dst, msg_size, msg_sequence, msg_type, msg_parity, msg_data[MAX_DATA_SIZE+1];
     int ret, reps, err, lin_ini;
@@ -83,6 +101,20 @@ int main(){
             break;
 
         sscanf(promptLine, "%s", command);
+        if (!strcmp(command, LLS_STR)){
+            ret = executeLls();
+            if (ret) printError(DIR_ER);
+            continue;
+        } else if (!strcmp(command, LCD_STR)){
+            sscanf(promptLine+strlen(LCD_STR), "%s", buf);
+            ret = executeCd(buf);
+            if (ret == 2 || ret == 20)
+                printError(DIR_ER); 
+            else if (ret == 13) // Sem permissão para acessar diretório.
+                printError(PERM_ER);
+            continue;
+        }
+
         if (err = buildMsgsFromTxt(promptLine, &msgStream, seq)){
             fprintf(stderr, "Error with command!\n");
             continue;
@@ -137,22 +169,7 @@ int main(){
             printf("\n");
         }
         else if (msg_type == ERROR_TYPE){
-            switch (msg_data[0]){
-                case PERM_ER:
-                    fprintf(stderr, "Error: Permisison denied.\n");
-                    break;
-                case DIR_ER:
-                    fprintf(stderr, "Error: No such directory.\n");
-                    break;
-                case FILE_ER:
-                    fprintf(stderr, "Error: No such file\n");
-                    break;
-                case LINE_ER:
-                    fprintf(stderr, "Error: No such line number\n");
-                    break;
-                default:
-                    fprintf(stderr, "Got invalid error message\n");
-            }
+            printError(msg_data[0]);
         }
         else if (msg_type == END_TRANSM_TYPE){
             seq = nextSeq(seq);

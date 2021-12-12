@@ -6,6 +6,25 @@
 #include "common.h"
 
 
+void printError(unsigned char err){
+    switch (err){
+        case PERM_ER:
+            fprintf(stderr, "Error: Permisison denied.\n");
+            break;
+        case DIR_ER:
+            fprintf(stderr, "Error: No such directory.\n");
+            break;
+        case FILE_ER:
+            fprintf(stderr, "Error: No such file\n");
+            break;
+        case LINE_ER:
+            fprintf(stderr, "Error: No such line number\n");
+            break;
+        default:
+            fprintf(stderr, "Got invalid error message\n");
+    }
+}
+
 /**********************
   FUNÇÕES PARA STREAM
 **********************/
